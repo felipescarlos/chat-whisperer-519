@@ -17,6 +17,7 @@ import {
 } from "@/lib/evolution-api";
 import { expandVariations, randomBetween, sleep } from "@/lib/broadcast-utils";
 import { appendHistory } from "@/lib/broadcast-history";
+import { getChipDisplayName } from "@/lib/chip-labels";
 
 export const Route = createFileRoute("/disparos")({
   head: () => ({
@@ -214,7 +215,7 @@ function DisparosPage() {
                           disabled={!connected}
                         />
                         <span className="flex-1 text-sm">
-                          {i.profileName || i.name}{" "}
+                          {getChipDisplayName(i)}{" "}
                           <span className="text-muted-foreground">@{i.name}</span>
                         </span>
                         <span

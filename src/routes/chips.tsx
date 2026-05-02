@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Trash2, RefreshCw, Smartphone } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Smartphone, Pencil } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
   instanceState,
   isInstanceConnected,
 } from "@/lib/evolution-api";
+import { getChipDisplayName, setChipLabel, getChipLabel } from "@/lib/chip-labels";
 
 export const Route = createFileRoute("/chips")({
   head: () => ({
@@ -44,6 +45,9 @@ function ChipsPage() {
   const [qrInstance, setQrInstance] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string>("");
   const [qrLoading, setQrLoading] = useState(false);
+  const [editLabelOpen, setEditLabelOpen] = useState(false);
+  const [labelInstance, setLabelInstance] = useState<string | null>(null);
+  const [newLabel, setNewLabel] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -144,6 +148,21 @@ function ChipsPage() {
     }
   };
 
+  const openEditLabel = (name: string) => {
+    setLabelInstance(name);
+    setNewLabel(getChipLabel(name) || "");
+    setEditLabelOpen(true);
+  };
+
+  const handleSaveLabel = () => {
+    if (labelInstance) {
+      setChipLabel(labelInstance, newLabel);
+      toast.success("Etiqueta atualizada");
+      setEditLabelOpen(false);
+      load(); // to refresh display
+    }
+  };
+
   return (
     <AppShell>
       <div className="h-full overflow-y-auto p-6">
@@ -189,8 +208,17 @@ function ChipsPage() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold truncate">
-                          {i.profileName || i.name}
+                        <div className="flex items-center gap-1">
+                          <div className="font-semibold truncate">
+                            {getChipDisplayName(i)}
+                          </div>
+                          <button
+                            onClick={() => openEditLabel(i.name)}
+                            className="p-1 hover:bg-muted rounded text-muted-foreground"
+                            title="Editar etiqueta"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {i.ownerJid ? i.ownerJid.replace(/@.*$/, "") : i.number || "—"}
@@ -290,6 +318,30 @@ function ChipsPage() {
               <RefreshCw className="h-4 w-4 mr-2" /> Atualizar agora
             </Button>
             <Button onClick={closeQr}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Label Edit modal */}
+      <Dialog open={editLabelOpen} onOpenChange={setEditLabelOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar etiqueta</DialogTitle>
+            <DialogDescription>
+              Defina um nome amigável para identificar este chip (ex: 7195).
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder="Etiqueta do chip"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditLabelOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveLabel}>
+              Salvar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
