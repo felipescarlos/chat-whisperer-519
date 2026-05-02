@@ -9,8 +9,26 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as HistoricoRouteImport } from './routes/historico'
+import { Route as DisparosRouteImport } from './routes/disparos'
+import { Route as ChipsRouteImport } from './routes/chips'
 import { Route as IndexRouteImport } from './routes/index'
 
+const HistoricoRoute = HistoricoRouteImport.update({
+  id: '/historico',
+  path: '/historico',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DisparosRoute = DisparosRouteImport.update({
+  id: '/disparos',
+  path: '/disparos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChipsRoute = ChipsRouteImport.update({
+  id: '/chips',
+  path: '/chips',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +37,61 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/chips': typeof ChipsRoute
+  '/disparos': typeof DisparosRoute
+  '/historico': typeof HistoricoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/chips': typeof ChipsRoute
+  '/disparos': typeof DisparosRoute
+  '/historico': typeof HistoricoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/chips': typeof ChipsRoute
+  '/disparos': typeof DisparosRoute
+  '/historico': typeof HistoricoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/chips' | '/disparos' | '/historico'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/chips' | '/disparos' | '/historico'
+  id: '__root__' | '/' | '/chips' | '/disparos' | '/historico'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ChipsRoute: typeof ChipsRoute
+  DisparosRoute: typeof DisparosRoute
+  HistoricoRoute: typeof HistoricoRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/historico': {
+      id: '/historico'
+      path: '/historico'
+      fullPath: '/historico'
+      preLoaderRoute: typeof HistoricoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/disparos': {
+      id: '/disparos'
+      path: '/disparos'
+      fullPath: '/disparos'
+      preLoaderRoute: typeof DisparosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chips': {
+      id: '/chips'
+      path: '/chips'
+      fullPath: '/chips'
+      preLoaderRoute: typeof ChipsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,16 +104,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ChipsRoute: ChipsRoute,
+  DisparosRoute: DisparosRoute,
+  HistoricoRoute: HistoricoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
