@@ -32,8 +32,8 @@ export function setChipLabel(instanceName: string, label: string) {
   saveAllLabels(labels);
 }
 
-export function getChipDisplayName(i: { name: string; profileName?: string | null }): string {
-  const label = getChipLabel(i.name);
+export function getChipDisplayName(i: { name: string; profileName?: string | null }, labels: Record<string, string> = {}): string {
+  const label = labels[i.name];
   if (label) return label;
   return i.profileName || i.name;
 }

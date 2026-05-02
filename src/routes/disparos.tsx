@@ -17,7 +17,7 @@ import {
 } from "@/lib/evolution-api";
 import { expandVariations, randomBetween, sleep } from "@/lib/broadcast-utils";
 import { appendHistory } from "@/lib/broadcast-history";
-import { getChipDisplayName } from "@/lib/chip-labels";
+import { getChipDisplayName, loadAllLabels } from "@/lib/chip-labels";
 
 export const Route = createFileRoute("/disparos")({
   head: () => ({
@@ -47,12 +47,14 @@ function DisparosPage() {
   const [maxSec, setMaxSec] = useState(30);
   const [perChipLimit, setPerChipLimit] = useState(50);
   const [status, setStatus] = useState<Status>("idle");
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState({ sent: 0, total: 0, errors: 0 });
   const [log, setLog] = useState<LogEntry[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const pauseRef = useRef<{ paused: boolean }>({ paused: false });
 
   useEffect(() => {
+    setLabels(loadAllLabels());
     fetchInstances()
       .then(setInstances)
       .catch(() => toast.error("Falha ao carregar chips"));
@@ -215,7 +217,7 @@ function DisparosPage() {
                           disabled={!connected}
                         />
                         <span className="flex-1 text-sm">
-                          {getChipDisplayName(i)}{" "}
+                          {getChipDisplayName(i, labels)}{" "}
                           <span className="text-muted-foreground">@{i.name}</span>
                         </span>
                         <span

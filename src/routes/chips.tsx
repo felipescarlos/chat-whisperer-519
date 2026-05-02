@@ -24,7 +24,7 @@ import {
   instanceState,
   isInstanceConnected,
 } from "@/lib/evolution-api";
-import { getChipDisplayName, setChipLabel, getChipLabel } from "@/lib/chip-labels";
+import { getChipDisplayName, setChipLabel, loadAllLabels } from "@/lib/chip-labels";
 
 export const Route = createFileRoute("/chips")({
   head: () => ({
@@ -45,10 +45,15 @@ function ChipsPage() {
   const [qrInstance, setQrInstance] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string>("");
   const [qrLoading, setQrLoading] = useState(false);
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [editLabelOpen, setEditLabelOpen] = useState(false);
   const [labelInstance, setLabelInstance] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    setLabels(loadAllLabels());
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -150,16 +155,16 @@ function ChipsPage() {
 
   const openEditLabel = (name: string) => {
     setLabelInstance(name);
-    setNewLabel(getChipLabel(name) || "");
+    setNewLabel(labels[name] || "");
     setEditLabelOpen(true);
   };
 
   const handleSaveLabel = () => {
     if (labelInstance) {
       setChipLabel(labelInstance, newLabel);
+      setLabels(loadAllLabels());
       toast.success("Etiqueta atualizada");
       setEditLabelOpen(false);
-      load(); // to refresh display
     }
   };
 
@@ -208,17 +213,19 @@ function ChipsPage() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 group">
                           <div className="font-semibold truncate">
-                            {getChipDisplayName(i)}
+                            {getChipDisplayName(i, labels)}
                           </div>
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => openEditLabel(i.name)}
-                            className="p-1 hover:bg-muted rounded text-muted-foreground"
                             title="Editar etiqueta"
                           >
                             <Pencil className="h-3 w-3" />
-                          </button>
+                          </Button>
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {i.ownerJid ? i.ownerJid.replace(/@.*$/, "") : i.number || "—"}
