@@ -1,5 +1,5 @@
 // Evolution API v2 client
-export const EVOLUTION_BASE_URL = "http://2.24.64.2:3002";
+export const EVOLUTION_BASE_URL = "https://wpp.rodrigobernardo.com.br";
 export const EVOLUTION_API_KEY = "d8018c4e57bf8f50316fa31214bb1048";
 
 const headers = {
