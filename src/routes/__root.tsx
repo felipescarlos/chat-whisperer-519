@@ -38,6 +38,10 @@ export const Route = createRootRoute({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "WhatsApp Painel" },
+      { name: "twitter:description", content: "Painel WhatsApp Business via Evolution API." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/90f3c228-e51c-416f-b052-f523d1ee9d0b/id-preview-6aa0b79b--6251f70d-a628-4990-bf30-dfb3ac3ab2d2.lovable.app-1777750101183.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/90f3c228-e51c-416f-b052-f523d1ee9d0b/id-preview-6aa0b79b--6251f70d-a628-4990-bf30-dfb3ac3ab2d2.lovable.app-1777750101183.png" },
     ],
     links: [
       {
