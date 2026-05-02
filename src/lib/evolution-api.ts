@@ -159,6 +159,23 @@ export function jidToNumber(jid: string): string {
   return jid.replace(/@.*$/, "");
 }
 
+// For @lid JIDs, the real phone number is in remoteJidAlt. Pick the best
+// sendable number from a chat or message key.
+export function getSendableNumber(source: {
+  remoteJid?: string;
+  remoteJidAlt?: string | null;
+  lastMessage?: { key?: { remoteJidAlt?: string | null; remoteJid?: string } } | null;
+  key?: { remoteJidAlt?: string | null; remoteJid?: string };
+}): string {
+  const altTop = (source as any).remoteJidAlt as string | undefined | null;
+  const altKey = source.lastMessage?.key?.remoteJidAlt || source.key?.remoteJidAlt;
+  const jid = source.remoteJid || source.key?.remoteJid || "";
+  const isLid = jid.includes("@lid");
+  const alt = altTop || altKey || "";
+  if (isLid && alt) return jidToNumber(alt);
+  return jidToNumber(jid);
+}
+
 export function numberToJid(number: string): string {
   const clean = number.replace(/\D/g, "");
   return `${clean}@s.whatsapp.net`;
