@@ -25,6 +25,7 @@ import {
   getMessageTimestamp,
   isInstanceConnected,
   jidToNumber,
+  getSendableNumber,
   sendText,
 } from "@/lib/evolution-api";
 
