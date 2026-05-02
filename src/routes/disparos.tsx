@@ -128,14 +128,14 @@ function DisparosPage() {
           perChipCount[chip]++;
           success++;
           setProgress((p) => ({ ...p, sent: p.sent + 1 }));
-          setLog((l) => [{ number, instance: chip!, status: "success" }, ...l].slice(0, 200));
+          const entry: LogEntry = { number, instance: chip!, status: "success" };
+          setLog((l) => [entry, ...l].slice(0, 200));
         } catch (e) {
           errors++;
           const msg = e instanceof Error ? e.message : "Erro";
           setProgress((p) => ({ ...p, sent: p.sent + 1, errors: p.errors + 1 }));
-          setLog((l) =>
-            [{ number, instance: chip!, status: "error", error: msg }, ...l].slice(0, 200),
-          );
+          const entry: LogEntry = { number, instance: chip!, status: "error", error: msg };
+          setLog((l) => [entry, ...l].slice(0, 200));
         }
 
         // Wait
