@@ -25,6 +25,7 @@ import {
   getMessageTimestamp,
   isInstanceConnected,
   jidToNumber,
+  getSendableNumber,
   sendText,
 } from "@/lib/evolution-api";
 
@@ -170,7 +171,7 @@ function ConversasPage() {
     const text = draft.trim();
     setDraft("");
     try {
-      await sendText(selected.__instance, jidToNumber(selected.remoteJid), text);
+      await sendText(selected.__instance, getSendableNumber(selected as any), text);
       // Optimistic append
       setMessages((m) => [
         ...m,
