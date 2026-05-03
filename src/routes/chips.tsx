@@ -301,11 +301,36 @@ function ChipsPage() {
             <DialogTitle>Adicionar chip</DialogTitle>
             <DialogDescription>Dê um nome único para a instância (sem espaços).</DialogDescription>
           </DialogHeader>
-          <Input
-            placeholder="ex: chip_vendas_01"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value.replace(/\s+/g, "_"))}
-          />
+          <div className="space-y-3">
+            <Input
+              placeholder="Nome (ex: chip_vendas_01)"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value.replace(/\s+/g, "_"))}
+            />
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={usePairingCode}
+                onChange={(e) => setUsePairingCode(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              Conectar por código de pareamento (sem QR)
+            </label>
+            {usePairingCode && (
+              <div className="space-y-1">
+                <Input
+                  placeholder="Número com DDI+DDD (ex: 5511999999999)"
+                  value={newNumber}
+                  onChange={(e) => setNewNumber(e.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Você receberá um código de 8 dígitos para digitar no WhatsApp:
+                  Aparelhos conectados → Conectar com número de telefone.
+                </p>
+              </div>
+            )}
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>
               Cancelar
