@@ -98,9 +98,10 @@ function ChipsPage() {
           load();
           return;
         }
-        const r = await connectInstance(name);
+        const r = await connectInstance(name, pairingNumber || undefined);
         const code = r.base64 || r.code || "";
         setQrCode(code);
+        if (r.pairingCode) setPairingCode(r.pairingCode);
       } catch (e) {
         console.error(e);
         toast.error("Falha ao gerar QR Code");
@@ -108,12 +109,14 @@ function ChipsPage() {
         setQrLoading(false);
       }
     },
-    [load],
+    [load, pairingNumber],
   );
 
-  const openQr = async (name: string) => {
+  const openQr = async (name: string, number?: string) => {
     setQrInstance(name);
     setQrCode("");
+    setPairingCode("");
+    setPairingNumber(number || "");
     await refreshQr(name);
     stopPolling();
     intervalRef.current = setInterval(() => refreshQr(name), 20_000);
