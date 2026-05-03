@@ -348,12 +348,23 @@ function ChipsPage() {
           <DialogHeader>
             <DialogTitle>Conectar {qrInstance}</DialogTitle>
             <DialogDescription>
-              Abra o WhatsApp no celular → Aparelhos conectados → Conectar aparelho. O QR atualiza a
-              cada 20 segundos.
+              {pairingCode
+                ? "No WhatsApp do celular: Aparelhos conectados → Conectar com número de telefone, e digite o código abaixo."
+                : "Abra o WhatsApp no celular → Aparelhos conectados → Conectar aparelho. O QR atualiza a cada 20 segundos."}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center py-4 min-h-[280px] items-center">
-            {qrLoading && !qrCode ? (
+          <div className="flex flex-col items-center justify-center py-4 min-h-[280px] gap-4">
+            {pairingCode ? (
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground mb-2">Código de pareamento</div>
+                <div className="text-4xl font-mono font-bold tracking-[0.3em] bg-muted px-6 py-4 rounded-lg">
+                  {pairingCode.match(/.{1,4}/g)?.join("-") || pairingCode}
+                </div>
+                {pairingNumber && (
+                  <div className="text-xs text-muted-foreground mt-2">Número: {pairingNumber}</div>
+                )}
+              </div>
+            ) : qrLoading && !qrCode ? (
               <div className="text-muted-foreground">Gerando QR Code...</div>
             ) : qrCode ? (
               qrCode.startsWith("data:image") ? (
