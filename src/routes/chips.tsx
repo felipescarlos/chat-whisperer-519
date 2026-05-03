@@ -41,9 +41,13 @@ function ChipsPage() {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newNumber, setNewNumber] = useState("");
+  const [usePairingCode, setUsePairingCode] = useState(false);
   const [creating, setCreating] = useState(false);
   const [qrInstance, setQrInstance] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string>("");
+  const [pairingCode, setPairingCode] = useState<string>("");
+  const [pairingNumber, setPairingNumber] = useState<string>("");
   const [qrLoading, setQrLoading] = useState(false);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [editLabelOpen, setEditLabelOpen] = useState(false);
