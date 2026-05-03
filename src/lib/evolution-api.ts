@@ -146,7 +146,7 @@ export function findChats(instanceName: string) {
 export function findMessages(instanceName: string, remoteJid: string) {
   const body = {
     where: { key: { remoteJid } },
-    limit: 100,
+    limit: 500,
   };
   return request<Message[] | { messages?: { records?: Message[] } }>(
     `/chat/findMessages/${encodeURIComponent(instanceName)}`,
@@ -167,6 +167,18 @@ export function sendText(instanceName: string, number: string, text: string) {
 // Helpers
 export function jidToNumber(jid: string): string {
   return jid.replace(/@.*$/, "");
+}
+
+export function formatPhoneNumber(numberStr: string): string {
+  const digits = numberStr.replace(/\D/g, "");
+  // Brazilian numbers with country code: 55 + 2 digits DDD + 8 or 9 digits number
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+    const ddd = digits.slice(2, 4);
+    const firstPart = digits.slice(4, digits.length - 4);
+    const lastPart = digits.slice(digits.length - 4);
+    return `+55 (${ddd}) ${firstPart}-${lastPart}`;
+  }
+  return numberStr; // fallback for non-brazilian or poorly formatted numbers
 }
 
 // For @lid JIDs, the real phone number is in remoteJidAlt. Pick the best

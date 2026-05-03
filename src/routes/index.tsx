@@ -27,6 +27,7 @@ import {
   jidToNumber,
   getSendableNumber,
   sendText,
+  formatPhoneNumber,
 } from "@/lib/evolution-api";
 
 export const Route = createFileRoute("/")({
@@ -47,10 +48,12 @@ function formatTime(ts?: number) {
   if (!ts) return "";
   const d = new Date(ts);
   const now = new Date();
+  const timeStr = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    return timeStr;
   }
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const dateStr = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  return `${dateStr} ${timeStr}`;
 }
 
 function ConversasPage() {
@@ -67,39 +70,40 @@ function ConversasPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Load instances + their chats
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoadingChats(true);
-      try {
-        const list = await fetchInstances();
-        if (cancelled) return;
-        setInstances(list);
-        const connected = list.filter(isInstanceConnected);
-        const result: Record<string, Chat[]> = {};
-        await Promise.all(
-          connected.map(async (inst) => {
-            try {
-              const chats = await findChats(inst.name);
-              result[inst.name] = Array.isArray(chats) ? chats : [];
-            } catch (e) {
-              console.error("findChats", inst.name, e);
-              result[inst.name] = [];
-            }
-          }),
-        );
-        if (!cancelled) setChatsByInstance(result);
-      } catch (e) {
+  const loadChats = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoadingChats(true);
+    try {
+      const list = await fetchInstances();
+      setInstances(list);
+      const connected = list.filter(isInstanceConnected);
+      const result: Record<string, Chat[]> = {};
+      await Promise.all(
+        connected.map(async (inst) => {
+          try {
+            const chats = await findChats(inst.name);
+            result[inst.name] = Array.isArray(chats) ? chats : [];
+          } catch (e) {
+            console.error("findChats", inst.name, e);
+            result[inst.name] = [];
+          }
+        }),
+      );
+      setChatsByInstance(result);
+    } catch (e) {
+      if (!isBackground) {
         console.error(e);
         toast.error("Falha ao carregar conversas");
-      } finally {
-        if (!cancelled) setLoadingChats(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } finally {
+      if (!isBackground) setLoadingChats(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadChats();
+    const interval = setInterval(() => loadChats(true), 4000);
+    return () => clearInterval(interval);
+  }, [loadChats]);
 
   const allChats = useMemo<ChatWithInstance[]>(() => {
     const list: ChatWithInstance[] = [];
@@ -134,32 +138,43 @@ function ConversasPage() {
   }, [chatsByInstance, filterInstance, search]);
 
   // Load messages when select
-  useEffect(() => {
+  const loadMessages = useCallback(async (isBackground = false) => {
     if (!selected) return;
-    let cancelled = false;
-    (async () => {
-      setLoadingMsgs(true);
-      setMessages([]);
-      try {
-        const msgs = await findMessages(selected.__instance, selected.remoteJid);
-        if (cancelled) return;
-        const sorted = [...msgs].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
-        setMessages(sorted);
-      } catch (e) {
+    if (!isBackground) setLoadingMsgs(true);
+    try {
+      const msgs = await findMessages(selected.__instance, selected.remoteJid);
+      const sorted = [...msgs].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
+      
+      setMessages(prev => {
+        // Only update if something changed to avoid unnecessary re-renders
+        if (JSON.stringify(prev) === JSON.stringify(sorted)) return prev;
+        return sorted;
+      });
+    } catch (e) {
+      if (!isBackground) {
         console.error(e);
         toast.error("Falha ao carregar mensagens");
-      } finally {
-        if (!cancelled) setLoadingMsgs(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } finally {
+      if (!isBackground) setLoadingMsgs(false);
+    }
   }, [selected]);
 
   useEffect(() => {
+    setMessages([]);
+    loadMessages();
+    const interval = setInterval(() => loadMessages(true), 2500);
+    return () => clearInterval(interval);
+  }, [loadMessages, selected]);
+
+  useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      // If we are near the bottom (within 150px), or it's the first load, auto-scroll
+      const isAtBottom = scrollHeight - scrollTop <= clientHeight + 150;
+      if (isAtBottom || messages.length <= 1) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
     }
   }, [messages]);
 
@@ -256,7 +271,7 @@ function ConversasPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline gap-2">
                       <span className="font-medium truncate">
-                        {c.pushName || jidToNumber(c.remoteJid)}
+                        {c.pushName || formatPhoneNumber(jidToNumber(c.remoteJid))}
                       </span>
                       <span className="text-[11px] text-muted-foreground shrink-0">
                         {formatTime(ts)}
@@ -264,7 +279,7 @@ function ConversasPage() {
                     </div>
                     <div className="flex justify-between items-center gap-2">
                       <p className="text-xs text-muted-foreground truncate">
-                        {getChatLastMessageText(c) || jidToNumber(c.remoteJid)}
+                        {getChatLastMessageText(c) || formatPhoneNumber(jidToNumber(c.remoteJid))}
                       </p>
                       <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground shrink-0">
                         {c.__instance}
@@ -288,21 +303,23 @@ function ConversasPage() {
             </div>
           ) : (
             <>
-              <div className="px-4 py-3 bg-panel-header border-b border-border flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={selected.profilePicUrl || undefined} />
-                  <AvatarFallback className="bg-muted">
-                    {(selected.pushName || jidToNumber(selected.remoteJid))
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">
-                    {selected.pushName || jidToNumber(selected.remoteJid)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {jidToNumber(selected.remoteJid)}
+              <div className="p-4 border-b border-border flex items-center justify-between shrink-0 bg-panel-header">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={selected.profilePicUrl || undefined} />
+                    <AvatarFallback className="bg-muted">
+                      {(selected.pushName || jidToNumber(selected.remoteJid))
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h2 className="font-semibold text-foreground">
+                      {selected.pushName || formatPhoneNumber(jidToNumber(selected.remoteJid))}
+                    </h2>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{formatPhoneNumber(getSendableNumber(selected as any))}</span>
+                    </div>
                   </div>
                 </div>
                 <div className="text-xs bg-primary/20 text-primary px-2 py-1 rounded">
