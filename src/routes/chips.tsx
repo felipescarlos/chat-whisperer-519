@@ -126,6 +126,8 @@ function ChipsPage() {
     stopPolling();
     setQrInstance(null);
     setQrCode("");
+    setPairingCode("");
+    setPairingNumber("");
     load();
   };
 
@@ -135,14 +137,31 @@ function ChipsPage() {
       toast.error("Informe um nome");
       return;
     }
+    const number = newNumber.replace(/\D/g, "");
+    if (usePairingCode && number.length < 10) {
+      toast.error("Informe o número com DDI + DDD (ex: 5511999999999)");
+      return;
+    }
     setCreating(true);
     try {
-      await createInstance(name);
+      const res = await createInstance(name, usePairingCode ? number : undefined);
       toast.success("Chip criado");
       setAddOpen(false);
       setNewName("");
+      setNewNumber("");
+      const usingPair = usePairingCode;
+      const pairNum = number;
+      setUsePairingCode(false);
       await load();
-      openQr(name);
+      // If API already returned a pairing code, show it without re-calling connect
+      if (usingPair && res?.qrcode?.pairingCode) {
+        setQrInstance(name);
+        setPairingCode(res.qrcode.pairingCode);
+        setPairingNumber(pairNum);
+        setQrCode(res.qrcode.base64 || res.qrcode.code || "");
+      } else {
+        openQr(name, usingPair ? pairNum : undefined);
+      }
     } catch (e) {
       console.error(e);
       toast.error("Falha ao criar chip");
