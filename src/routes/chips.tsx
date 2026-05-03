@@ -155,15 +155,8 @@ function ChipsPage() {
       const pairNum = number;
       setUsePairingCode(false);
       await load();
-      // If API already returned a pairing code, show it without re-calling connect
-      if (usingPair && res?.qrcode?.pairingCode) {
-        setQrInstance(name);
-        setPairingCode(res.qrcode.pairingCode);
-        setPairingNumber(pairNum);
-        setQrCode(res.qrcode.base64 || res.qrcode.code || "");
-      } else {
-        openQr(name, usingPair ? pairNum : undefined);
-      }
+      // Always go through openQr so polling refreshes the (short-lived) code
+      openQr(name, usingPair ? pairNum : undefined);
     } catch (e) {
       console.error(e);
       toast.error("Falha ao criar chip");
