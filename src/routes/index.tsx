@@ -145,10 +145,19 @@ function ConversasPage() {
       const msgs = await findMessages(selected.__instance, selected.remoteJid);
       const sorted = [...msgs].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
       
+      // Deduplicate by ID
+      const unique: Message[] = [];
+      const ids = new Set();
+      for (const m of sorted) {
+        if (!ids.has(m.key.id)) {
+          ids.add(m.key.id);
+          unique.push(m);
+        }
+      }
+
       setMessages(prev => {
-        // Only update if something changed to avoid unnecessary re-renders
-        if (JSON.stringify(prev) === JSON.stringify(sorted)) return prev;
-        return sorted;
+        if (JSON.stringify(prev) === JSON.stringify(unique)) return prev;
+        return unique;
       });
     } catch (e) {
       if (!isBackground) {

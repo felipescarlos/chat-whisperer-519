@@ -145,7 +145,7 @@ export function findChats(instanceName: string) {
 
 export function findMessages(instanceName: string, remoteJid: string) {
   const body = {
-    where: { key: { remoteJid } },
+    where: { remoteJid },
     limit: 500,
   };
   return request<Message[] | { messages?: { records?: Message[] } }>(
@@ -248,7 +248,18 @@ export function getMessageText(m: Message): string {
     return getMessageText({ ...m, message: (msg as any).viewOnceMessageV2.message });
   }
 
-  return "(Mensagem)";
+  // 6. Generic Media/Document fallback
+  if ((msg as any).stickerMessage) return "Figurinha";
+  if ((msg as any).contactMessage || (msg as any).contactsArrayMessage) return "👤 Contato";
+  if ((msg as any).locationMessage) return "📍 Localização";
+  if ((msg as any).pollCreationMessage || (msg as any).pollCreationMessageV2 || (msg as any).pollCreationMessageV3) return "📊 Enquete";
+
+  // Fallback for buttons/templates/interactive
+  if ((msg as any).buttonsMessage) return "🔘 Botões";
+  if ((msg as any).templateMessage) return "📋 Modelo";
+  if ((msg as any).interactiveMessage) return "🔘 Interação";
+
+  return "(Mensagem)"; 
 }
 
 export function getChatLastMessageText(c: Chat): string {
