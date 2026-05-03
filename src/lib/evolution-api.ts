@@ -109,8 +109,9 @@ export interface ConnectResponse {
   [k: string]: unknown;
 }
 
-export function connectInstance(instanceName: string) {
-  return request<ConnectResponse>(`/instance/connect/${encodeURIComponent(instanceName)}`);
+export function connectInstance(instanceName: string, number?: string) {
+  const qs = number ? `?number=${encodeURIComponent(number.replace(/\D/g, ""))}` : "";
+  return request<ConnectResponse>(`/instance/connect/${encodeURIComponent(instanceName)}${qs}`);
 }
 
 export function deleteInstance(instanceName: string) {
