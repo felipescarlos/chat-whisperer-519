@@ -119,7 +119,9 @@ function ChipsPage() {
     setPairingNumber(number || "");
     await refreshQr(name);
     stopPolling();
-    intervalRef.current = setInterval(() => refreshQr(name), 20_000);
+    // Pairing codes expire ~60s; refresh more often when in pairing mode
+    const ms = number ? 30_000 : 20_000;
+    intervalRef.current = setInterval(() => refreshQr(name), ms);
   };
 
   const closeQr = () => {
