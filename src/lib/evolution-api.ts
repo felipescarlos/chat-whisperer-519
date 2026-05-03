@@ -81,14 +81,23 @@ export function fetchInstances() {
   return request<Instance[]>("/instance/fetchInstances");
 }
 
-export function createInstance(instanceName: string) {
-  return request<unknown>("/instance/create", {
+export interface CreateInstanceResponse {
+  instance?: { instanceName?: string; status?: string };
+  hash?: string | { apikey?: string };
+  qrcode?: { pairingCode?: string | null; code?: string; base64?: string };
+  [k: string]: unknown;
+}
+
+export function createInstance(instanceName: string, number?: string) {
+  const body: Record<string, unknown> = {
+    instanceName,
+    qrcode: true,
+    integration: "WHATSAPP-BAILEYS",
+  };
+  if (number) body.number = number.replace(/\D/g, "");
+  return request<CreateInstanceResponse>("/instance/create", {
     method: "POST",
-    body: JSON.stringify({
-      instanceName,
-      qrcode: true,
-      integration: "WHATSAPP-BAILEYS",
-    }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -100,8 +109,9 @@ export interface ConnectResponse {
   [k: string]: unknown;
 }
 
-export function connectInstance(instanceName: string) {
-  return request<ConnectResponse>(`/instance/connect/${encodeURIComponent(instanceName)}`);
+export function connectInstance(instanceName: string, number?: string) {
+  const qs = number ? `?number=${encodeURIComponent(number.replace(/\D/g, ""))}` : "";
+  return request<ConnectResponse>(`/instance/connect/${encodeURIComponent(instanceName)}${qs}`);
 }
 
 export function deleteInstance(instanceName: string) {

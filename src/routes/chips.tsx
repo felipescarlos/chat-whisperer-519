@@ -41,9 +41,13 @@ function ChipsPage() {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newNumber, setNewNumber] = useState("");
+  const [usePairingCode, setUsePairingCode] = useState(false);
   const [creating, setCreating] = useState(false);
   const [qrInstance, setQrInstance] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string>("");
+  const [pairingCode, setPairingCode] = useState<string>("");
+  const [pairingNumber, setPairingNumber] = useState<string>("");
   const [qrLoading, setQrLoading] = useState(false);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [editLabelOpen, setEditLabelOpen] = useState(false);
@@ -94,9 +98,10 @@ function ChipsPage() {
           load();
           return;
         }
-        const r = await connectInstance(name);
+        const r = await connectInstance(name, pairingNumber || undefined);
         const code = r.base64 || r.code || "";
         setQrCode(code);
+        if (r.pairingCode) setPairingCode(r.pairingCode);
       } catch (e) {
         console.error(e);
         toast.error("Falha ao gerar QR Code");
@@ -104,12 +109,14 @@ function ChipsPage() {
         setQrLoading(false);
       }
     },
-    [load],
+    [load, pairingNumber],
   );
 
-  const openQr = async (name: string) => {
+  const openQr = async (name: string, number?: string) => {
     setQrInstance(name);
     setQrCode("");
+    setPairingCode("");
+    setPairingNumber(number || "");
     await refreshQr(name);
     stopPolling();
     intervalRef.current = setInterval(() => refreshQr(name), 20_000);
@@ -119,6 +126,8 @@ function ChipsPage() {
     stopPolling();
     setQrInstance(null);
     setQrCode("");
+    setPairingCode("");
+    setPairingNumber("");
     load();
   };
 
@@ -128,14 +137,31 @@ function ChipsPage() {
       toast.error("Informe um nome");
       return;
     }
+    const number = newNumber.replace(/\D/g, "");
+    if (usePairingCode && number.length < 10) {
+      toast.error("Informe o número com DDI + DDD (ex: 5511999999999)");
+      return;
+    }
     setCreating(true);
     try {
-      await createInstance(name);
+      const res = await createInstance(name, usePairingCode ? number : undefined);
       toast.success("Chip criado");
       setAddOpen(false);
       setNewName("");
+      setNewNumber("");
+      const usingPair = usePairingCode;
+      const pairNum = number;
+      setUsePairingCode(false);
       await load();
-      openQr(name);
+      // If API already returned a pairing code, show it without re-calling connect
+      if (usingPair && res?.qrcode?.pairingCode) {
+        setQrInstance(name);
+        setPairingCode(res.qrcode.pairingCode);
+        setPairingNumber(pairNum);
+        setQrCode(res.qrcode.base64 || res.qrcode.code || "");
+      } else {
+        openQr(name, usingPair ? pairNum : undefined);
+      }
     } catch (e) {
       console.error(e);
       toast.error("Falha ao criar chip");
@@ -275,11 +301,36 @@ function ChipsPage() {
             <DialogTitle>Adicionar chip</DialogTitle>
             <DialogDescription>Dê um nome único para a instância (sem espaços).</DialogDescription>
           </DialogHeader>
-          <Input
-            placeholder="ex: chip_vendas_01"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value.replace(/\s+/g, "_"))}
-          />
+          <div className="space-y-3">
+            <Input
+              placeholder="Nome (ex: chip_vendas_01)"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value.replace(/\s+/g, "_"))}
+            />
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={usePairingCode}
+                onChange={(e) => setUsePairingCode(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              Conectar por código de pareamento (sem QR)
+            </label>
+            {usePairingCode && (
+              <div className="space-y-1">
+                <Input
+                  placeholder="Número com DDI+DDD (ex: 5511999999999)"
+                  value={newNumber}
+                  onChange={(e) => setNewNumber(e.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Você receberá um código de 8 dígitos para digitar no WhatsApp:
+                  Aparelhos conectados → Conectar com número de telefone.
+                </p>
+              </div>
+            )}
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>
               Cancelar
@@ -297,12 +348,23 @@ function ChipsPage() {
           <DialogHeader>
             <DialogTitle>Conectar {qrInstance}</DialogTitle>
             <DialogDescription>
-              Abra o WhatsApp no celular → Aparelhos conectados → Conectar aparelho. O QR atualiza a
-              cada 20 segundos.
+              {pairingCode
+                ? "No WhatsApp do celular: Aparelhos conectados → Conectar com número de telefone, e digite o código abaixo."
+                : "Abra o WhatsApp no celular → Aparelhos conectados → Conectar aparelho. O QR atualiza a cada 20 segundos."}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center py-4 min-h-[280px] items-center">
-            {qrLoading && !qrCode ? (
+          <div className="flex flex-col items-center justify-center py-4 min-h-[280px] gap-4">
+            {pairingCode ? (
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground mb-2">Código de pareamento</div>
+                <div className="text-4xl font-mono font-bold tracking-[0.3em] bg-muted px-6 py-4 rounded-lg">
+                  {pairingCode.match(/.{1,4}/g)?.join("-") || pairingCode}
+                </div>
+                {pairingNumber && (
+                  <div className="text-xs text-muted-foreground mt-2">Número: {pairingNumber}</div>
+                )}
+              </div>
+            ) : qrLoading && !qrCode ? (
               <div className="text-muted-foreground">Gerando QR Code...</div>
             ) : qrCode ? (
               qrCode.startsWith("data:image") ? (
