@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle } from "lucide-react";
+import { Play, Pause, Square, Send, HardDrive, CheckCircle2, AlertCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +13,14 @@ import { toast } from "sonner";
 import { Instance, fetchInstances, isInstanceConnected } from "@/lib/evolution-api";
 import { expandVariations } from "@/lib/broadcast-utils";
 import { getChipDisplayName, loadAllLabels } from "@/lib/chip-labels";
-import { supabase, BroadcastCampaign } from "@/lib/supabase";
+import { createCampaign, LocalCampaign } from "@/lib/local-queue";
+import { useBroadcastQueue } from "@/lib/useBroadcastQueue";
 
 export const Route = createFileRoute("/disparos")({
   head: () => ({
     meta: [
       { title: "Disparos — WhatsApp Painel" },
-      { name: "description", content: "Disparos em massa com fila de produção (background)." },
+      { name: "description", content: "Disparos em massa com fila local." },
     ],
   }),
   component: DisparosPage,
@@ -28,6 +29,9 @@ export const Route = createFileRoute("/disparos")({
 function DisparosPage() {
   const [activeTab, setActiveTab] = useState("novo");
 
+  // Instanciar o hook aqui garante que a fila rode enquanto a página /disparos estiver aberta
+  const { campaigns, setStatus, refresh } = useBroadcastQueue();
+
   return (
     <AppShell>
       <div className="h-full overflow-y-auto p-6">
@@ -35,7 +39,8 @@ function DisparosPage() {
           <div>
             <h1 className="text-2xl font-bold">Disparos em Massa</h1>
             <p className="text-sm text-muted-foreground">
-              Crie campanhas e acompanhe a fila de produção que roda no background.
+              Fila local. Feche a aba para pausar, abra a aba para retomar os envios
+              automaticamente.
             </p>
           </div>
 
@@ -43,16 +48,21 @@ function DisparosPage() {
             <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
               <TabsTrigger value="novo">Nova Campanha</TabsTrigger>
               <TabsTrigger value="producao" className="flex items-center gap-2">
-                <Server className="h-4 w-4" /> Produção
+                <HardDrive className="h-4 w-4" /> Produção Local
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="novo">
-              <NovoDisparoTab onCreated={() => setActiveTab("producao")} />
+              <NovoDisparoTab
+                onCreated={() => {
+                  refresh();
+                  setActiveTab("producao");
+                }}
+              />
             </TabsContent>
 
             <TabsContent value="producao">
-              <ProducaoTab />
+              <ProducaoTab campaigns={campaigns} setStatus={setStatus} />
             </TabsContent>
           </Tabs>
         </div>
@@ -70,7 +80,6 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
   const [maxSec, setMaxSec] = useState(30);
   const [perChipLimit, setPerChipLimit] = useState(50);
   const [labels, setLabels] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setLabels(loadAllLabels());
@@ -88,7 +97,7 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
     });
   };
 
-  const startCampaign = async () => {
+  const startCampaign = () => {
     const list = numbers
       .split("\n")
       .map((n) => n.replace(/\D/g, ""))
@@ -99,50 +108,20 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
     if (list.length === 0) return toast.error("Cole ao menos 1 número");
     if (!message.trim()) return toast.error("Informe a mensagem");
 
-    setLoading(true);
-    try {
-      // 1. Criar a campanha
-      const { data: campaign, error: campErr } = await supabase
-        .from("broadcasts")
-        .insert({
-          message,
-          min_sec: minSec,
-          max_sec: maxSec,
-          per_chip_limit: perChipLimit,
-          total: list.length,
-          chips,
-          status: "pending",
-        })
-        .select()
-        .single();
+    const mappedNumbers = list.map((n) => ({ number: n, status: "pending" as const }));
 
-      if (campErr || !campaign) throw campErr || new Error("Erro ao criar registro");
+    createCampaign({
+      message,
+      min_sec: minSec,
+      max_sec: maxSec,
+      per_chip_limit: perChipLimit,
+      chips,
+      numbers: mappedNumbers,
+    });
 
-      // 2. Inserir números em lotes para evitar timeout/limits
-      const batchSize = 500;
-      for (let i = 0; i < list.length; i += batchSize) {
-        const batch = list.slice(i, i + batchSize).map((num) => ({
-          broadcast_id: campaign.id,
-          number: num,
-          status: "pending",
-        }));
-        const { error: numErr } = await supabase.from("broadcast_numbers").insert(batch);
-        if (numErr) throw numErr;
-      }
-
-      // 3. Mudar para running
-      await supabase.from("broadcasts").update({ status: "running" }).eq("id", campaign.id);
-
-      toast.success("Campanha enviada para a fila de produção!");
-      setNumbers("");
-      onCreated();
-    } catch (e: unknown) {
-      console.error(e);
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      toast.error(`Falha ao criar fila: ${errorMessage}`);
-    } finally {
-      setLoading(false);
-    }
+    toast.success("Campanha adicionada à Fila Local!");
+    setNumbers("");
+    onCreated();
   };
 
   return (
@@ -248,43 +227,27 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
           </div>
         </div>
 
-        <Button onClick={startCampaign} disabled={loading} className="w-full" size="lg">
+        <Button onClick={startCampaign} className="w-full" size="lg">
           <Send className="h-4 w-4 mr-2" />
-          {loading ? "Enviando para Fila..." : "Iniciar Disparo em Background"}
+          Iniciar Fila Local
         </Button>
       </div>
     </div>
   );
 }
 
-function ProducaoTab() {
-  const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
-
-  const fetchCampaigns = async () => {
-    const { data } = await supabase
-      .from("broadcasts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (data) setCampaigns(data);
-  };
-
-  useEffect(() => {
-    fetchCampaigns();
-    const interval = setInterval(fetchCampaigns, 5000); // Polling simples
-    return () => clearInterval(interval);
-  }, []);
-
-  const setStatus = async (id: string, status: string) => {
-    await supabase.from("broadcasts").update({ status }).eq("id", id);
-    fetchCampaigns();
-  };
-
+function ProducaoTab({
+  campaigns,
+  setStatus,
+}: {
+  campaigns: LocalCampaign[];
+  setStatus: (id: string, s: string) => void;
+}) {
   if (campaigns.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
-        <Server className="h-10 w-10 mx-auto mb-3 opacity-20" />
-        Nenhuma campanha na fila de produção no momento.
+        <HardDrive className="h-10 w-10 mx-auto mb-3 opacity-20" />
+        Nenhuma campanha na fila local.
       </div>
     );
   }
@@ -292,7 +255,11 @@ function ProducaoTab() {
   return (
     <div className="space-y-4">
       {campaigns.map((camp) => {
-        const pct = camp.total ? ((camp.sent + camp.errors) / camp.total) * 100 : 0;
+        const total = camp.numbers.length;
+        const sent = camp.numbers.filter((n) => n.status === "sent").length;
+        const errors = camp.numbers.filter((n) => n.status === "error").length;
+        const pct = total ? ((sent + errors) / total) * 100 : 0;
+
         return (
           <div
             key={camp.id}
@@ -352,15 +319,15 @@ function ProducaoTab() {
                 <span className="flex items-center gap-2">
                   <span className="text-muted-foreground">Progresso:</span>
                   <strong>
-                    {camp.sent + camp.errors} / {camp.total}
+                    {sent + errors} / {total}
                   </strong>
                 </span>
                 <span className="flex gap-3 text-xs font-medium">
                   <span className="flex items-center text-success">
-                    <CheckCircle2 className="h-3 w-3 mr-1" /> {camp.sent}
+                    <CheckCircle2 className="h-3 w-3 mr-1" /> {sent}
                   </span>
                   <span className="flex items-center text-destructive">
-                    <AlertCircle className="h-3 w-3 mr-1" /> {camp.errors}
+                    <AlertCircle className="h-3 w-3 mr-1" /> {errors}
                   </span>
                 </span>
               </div>

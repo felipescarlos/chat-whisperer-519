@@ -320,8 +320,8 @@ function ChipsPage() {
                   inputMode="numeric"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Você receberá um código de 8 dígitos para digitar no WhatsApp:
-                  Aparelhos conectados → Vincular com número de telefone.
+                  Você receberá um código de 8 dígitos para digitar no WhatsApp: Aparelhos
+                  conectados → Vincular com número de telefone.
                 </p>
               </div>
             )}
@@ -382,10 +382,7 @@ function ChipsPage() {
                   const existing =
                     (inst?.number || "").replace(/\D/g, "") ||
                     (inst?.ownerJid || "").replace(/@.*$/, "");
-                  const input = prompt(
-                    "Número com DDI+DDD (ex: 5511999999999):",
-                    existing,
-                  );
+                  const input = prompt("Número com DDI+DDD (ex: 5511999999999):", existing);
                   if (!input) return;
                   const num = input.replace(/\D/g, "");
                   if (num.length < 10) {
