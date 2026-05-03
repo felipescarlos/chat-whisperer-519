@@ -119,7 +119,9 @@ function ChipsPage() {
     setPairingNumber(number || "");
     await refreshQr(name);
     stopPolling();
-    intervalRef.current = setInterval(() => refreshQr(name), 20_000);
+    // Pairing codes expire ~60s; refresh more often when in pairing mode
+    const ms = number ? 30_000 : 20_000;
+    intervalRef.current = setInterval(() => refreshQr(name), ms);
   };
 
   const closeQr = () => {
@@ -144,7 +146,7 @@ function ChipsPage() {
     }
     setCreating(true);
     try {
-      const res = await createInstance(name, usePairingCode ? number : undefined);
+      await createInstance(name, usePairingCode ? number : undefined);
       toast.success("Chip criado");
       setAddOpen(false);
       setNewName("");
@@ -153,15 +155,8 @@ function ChipsPage() {
       const pairNum = number;
       setUsePairingCode(false);
       await load();
-      // If API already returned a pairing code, show it without re-calling connect
-      if (usingPair && res?.qrcode?.pairingCode) {
-        setQrInstance(name);
-        setPairingCode(res.qrcode.pairingCode);
-        setPairingNumber(pairNum);
-        setQrCode(res.qrcode.base64 || res.qrcode.code || "");
-      } else {
-        openQr(name, usingPair ? pairNum : undefined);
-      }
+      // Always go through openQr so polling refreshes the (short-lived) code
+      openQr(name, usingPair ? pairNum : undefined);
     } catch (e) {
       console.error(e);
       toast.error("Falha ao criar chip");
@@ -326,7 +321,7 @@ function ChipsPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Você receberá um código de 8 dígitos para digitar no WhatsApp:
-                  Aparelhos conectados → Conectar com número de telefone.
+                  Aparelhos conectados → Vincular com número de telefone.
                 </p>
               </div>
             )}
@@ -349,7 +344,7 @@ function ChipsPage() {
             <DialogTitle>Conectar {qrInstance}</DialogTitle>
             <DialogDescription>
               {pairingCode
-                ? "No WhatsApp do celular: Aparelhos conectados → Conectar com número de telefone, e digite o código abaixo."
+                ? "No WhatsApp do celular: Aparelhos conectados → Vincular com número de telefone, e digite o código abaixo."
                 : "Abra o WhatsApp no celular → Aparelhos conectados → Conectar aparelho. O QR atualiza a cada 20 segundos."}
             </DialogDescription>
           </DialogHeader>
