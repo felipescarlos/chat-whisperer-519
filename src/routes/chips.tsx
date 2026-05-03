@@ -81,28 +81,31 @@ function ChipsPage() {
 
   useEffect(() => () => stopPolling(), []);
 
-  const refreshQr = useCallback(async (name: string) => {
-    setQrLoading(true);
-    try {
-      // Check if already connected
-      const state = await instanceState(name).catch(() => null);
-      if (state?.instance?.state === "open") {
-        toast.success(`Chip ${name} conectado!`);
-        setQrInstance(null);
-        stopPolling();
-        load();
-        return;
+  const refreshQr = useCallback(
+    async (name: string) => {
+      setQrLoading(true);
+      try {
+        // Check if already connected
+        const state = await instanceState(name).catch(() => null);
+        if (state?.instance?.state === "open") {
+          toast.success(`Chip ${name} conectado!`);
+          setQrInstance(null);
+          stopPolling();
+          load();
+          return;
+        }
+        const r = await connectInstance(name);
+        const code = r.base64 || r.code || "";
+        setQrCode(code);
+      } catch (e) {
+        console.error(e);
+        toast.error("Falha ao gerar QR Code");
+      } finally {
+        setQrLoading(false);
       }
-      const r = await connectInstance(name);
-      const code = r.base64 || r.code || "";
-      setQrCode(code);
-    } catch (e) {
-      console.error(e);
-      toast.error("Falha ao gerar QR Code");
-    } finally {
-      setQrLoading(false);
-    }
-  }, [load]);
+    },
+    [load],
+  );
 
   const openQr = async (name: string) => {
     setQrInstance(name);
@@ -175,9 +178,7 @@ function ChipsPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold">Chips</h1>
-              <p className="text-sm text-muted-foreground">
-                Gerencie suas instâncias WhatsApp
-              </p>
+              <p className="text-sm text-muted-foreground">Gerencie suas instâncias WhatsApp</p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={load}>
@@ -230,9 +231,7 @@ function ChipsPage() {
                         <div className="text-xs text-muted-foreground truncate">
                           {i.ownerJid ? i.ownerJid.replace(/@.*$/, "") : i.number || "—"}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          @{i.name}
-                        </div>
+                        <div className="text-xs text-muted-foreground truncate">@{i.name}</div>
                       </div>
                       <span
                         className={`h-3 w-3 rounded-full shrink-0 ${
@@ -274,9 +273,7 @@ function ChipsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Adicionar chip</DialogTitle>
-            <DialogDescription>
-              Dê um nome único para a instância (sem espaços).
-            </DialogDescription>
+            <DialogDescription>Dê um nome único para a instância (sem espaços).</DialogDescription>
           </DialogHeader>
           <Input
             placeholder="ex: chip_vendas_01"
@@ -300,8 +297,8 @@ function ChipsPage() {
           <DialogHeader>
             <DialogTitle>Conectar {qrInstance}</DialogTitle>
             <DialogDescription>
-              Abra o WhatsApp no celular → Aparelhos conectados → Conectar aparelho. O QR
-              atualiza a cada 20 segundos.
+              Abra o WhatsApp no celular → Aparelhos conectados → Conectar aparelho. O QR atualiza a
+              cada 20 segundos.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-center py-4 min-h-[280px] items-center">
@@ -309,7 +306,6 @@ function ChipsPage() {
               <div className="text-muted-foreground">Gerando QR Code...</div>
             ) : qrCode ? (
               qrCode.startsWith("data:image") ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={qrCode} alt="QR Code" className="w-64 h-64 bg-white p-2 rounded" />
               ) : (
                 <div className="bg-white p-3 rounded">
@@ -346,9 +342,7 @@ function ChipsPage() {
             <Button variant="outline" onClick={() => setEditLabelOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveLabel}>
-              Salvar
-            </Button>
+            <Button onClick={handleSaveLabel}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

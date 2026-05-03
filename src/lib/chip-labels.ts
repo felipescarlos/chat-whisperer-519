@@ -1,4 +1,3 @@
-
 const KEY = "chip-labels-v1";
 
 export function loadAllLabels(): Record<string, string> {
@@ -32,7 +31,10 @@ export function setChipLabel(instanceName: string, label: string) {
   saveAllLabels(labels);
 }
 
-export function getChipDisplayName(i: { name: string; profileName?: string | null }, labels: Record<string, string> = {}): string {
+export function getChipDisplayName(
+  i: { name: string; profileName?: string | null },
+  labels: Record<string, string> = {},
+): string {
   const label = labels[i.name];
   if (label) return label;
   return i.profileName || i.name;

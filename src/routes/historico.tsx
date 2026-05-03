@@ -71,10 +71,7 @@ function HistoricoPage() {
                       <td className="p-3">
                         <div className="flex flex-wrap gap-1">
                           {r.instances.map((i) => (
-                            <span
-                              key={i}
-                              className="text-xs bg-muted px-1.5 py-0.5 rounded"
-                            >
+                            <span key={i} className="text-xs bg-muted px-1.5 py-0.5 rounded">
                               {i}
                             </span>
                           ))}

@@ -9,12 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import {
-  Instance,
-  fetchInstances,
-  isInstanceConnected,
-  sendText,
-} from "@/lib/evolution-api";
+import { Instance, fetchInstances, isInstanceConnected, sendText } from "@/lib/evolution-api";
 import { expandVariations, randomBetween, sleep } from "@/lib/broadcast-utils";
 import { appendHistory } from "@/lib/broadcast-history";
 import { getChipDisplayName, loadAllLabels } from "@/lib/chip-labels";

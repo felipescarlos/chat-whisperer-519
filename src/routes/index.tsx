@@ -143,9 +143,7 @@ function ConversasPage() {
       try {
         const msgs = await findMessages(selected.__instance, selected.remoteJid);
         if (cancelled) return;
-        const sorted = [...msgs].sort(
-          (a, b) => getMessageTimestamp(a) - getMessageTimestamp(b),
-        );
+        const sorted = [...msgs].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
         setMessages(sorted);
       } catch (e) {
         console.error(e);
@@ -171,7 +169,11 @@ function ConversasPage() {
     const text = draft.trim();
     setDraft("");
     try {
-      await sendText(selected.__instance, getSendableNumber(selected as any), text);
+      await sendText(
+        selected.__instance,
+        getSendableNumber(selected as Parameters<typeof getSendableNumber>[0]),
+        text,
+      );
       // Optimistic append
       setMessages((m) => [
         ...m,
@@ -230,7 +232,8 @@ function ConversasPage() {
               </div>
             )}
             {allChats.map((c) => {
-              const active = selected?.remoteJid === c.remoteJid && selected?.__instance === c.__instance;
+              const active =
+                selected?.remoteJid === c.remoteJid && selected?.__instance === c.__instance;
               const ts = c.lastMessage?.messageTimestamp
                 ? Number(c.lastMessage.messageTimestamp) * 1000
                 : c.updatedAt

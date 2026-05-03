@@ -167,7 +167,7 @@ export function getSendableNumber(source: {
   lastMessage?: { key?: { remoteJidAlt?: string | null; remoteJid?: string } } | null;
   key?: { remoteJidAlt?: string | null; remoteJid?: string };
 }): string {
-  const altTop = (source as any).remoteJidAlt as string | undefined | null;
+  const altTop = (source as Record<string, unknown>).remoteJidAlt as string | undefined | null;
   const altKey = source.lastMessage?.key?.remoteJidAlt || source.key?.remoteJidAlt;
   const jid = source.remoteJid || source.key?.remoteJid || "";
   const isLid = jid.includes("@lid");
@@ -213,6 +213,8 @@ export function getMessageTimestamp(m: Message): number {
 }
 
 export function isInstanceConnected(i: Instance): boolean {
-  const s = (i.connectionStatus || (i as any).status || "").toString().toLowerCase();
+  const s = (i.connectionStatus || (i as Record<string, unknown>).status || "")
+    .toString()
+    .toLowerCase();
   return s === "open" || s === "connected";
 }
