@@ -321,7 +321,7 @@ function ChipsPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Você receberá um código de 8 dígitos para digitar no WhatsApp:
-                  Aparelhos conectados → Conectar com número de telefone.
+                  Aparelhos conectados → Vincular com número de telefone.
                 </p>
               </div>
             )}
@@ -344,7 +344,7 @@ function ChipsPage() {
             <DialogTitle>Conectar {qrInstance}</DialogTitle>
             <DialogDescription>
               {pairingCode
-                ? "No WhatsApp do celular: Aparelhos conectados → Conectar com número de telefone, e digite o código abaixo."
+                ? "No WhatsApp do celular: Aparelhos conectados → Vincular com número de telefone, e digite o código abaixo."
                 : "Abra o WhatsApp no celular → Aparelhos conectados → Conectar aparelho. O QR atualiza a cada 20 segundos."}
             </DialogDescription>
           </DialogHeader>
