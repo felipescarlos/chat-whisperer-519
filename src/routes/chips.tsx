@@ -146,7 +146,7 @@ function ChipsPage() {
     }
     setCreating(true);
     try {
-      const res = await createInstance(name, usePairingCode ? number : undefined);
+      await createInstance(name, usePairingCode ? number : undefined);
       toast.success("Chip criado");
       setAddOpen(false);
       setNewName("");
