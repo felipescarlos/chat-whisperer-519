@@ -232,6 +232,7 @@ export function isInstanceConnected(i: Instance): boolean {
 // Webhooks
 export interface SetWebhookBody {
   webhook: {
+    enabled: boolean;
     url: string;
     byEvents: boolean;
     base64: boolean;
@@ -239,9 +240,10 @@ export interface SetWebhookBody {
   };
 }
 
-export function setWebhook(instanceName: string, url: string) {
+export function setWebhook(instanceName: string, url: string, enabled: boolean = true) {
   const body: SetWebhookBody = {
     webhook: {
+      enabled,
       url,
       byEvents: false,
       base64: false,
@@ -252,4 +254,15 @@ export function setWebhook(instanceName: string, url: string) {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export interface WebhookConfig {
+  id?: string;
+  url?: string;
+  enabled?: boolean;
+}
+
+export function getWebhook(instanceName: string) {
+  return request<WebhookConfig | null>(`/webhook/find/${encodeURIComponent(instanceName)}`)
+    .catch(() => null);
 }

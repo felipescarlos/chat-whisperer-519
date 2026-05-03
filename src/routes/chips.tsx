@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Trash2, RefreshCw, Smartphone, Pencil } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Smartphone, Pencil, Webhook } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ import {
   fetchInstances,
   instanceState,
   isInstanceConnected,
+  getWebhook,
+  setWebhook,
 } from "@/lib/evolution-api";
 import { getChipDisplayName, setChipLabel, loadAllLabels } from "@/lib/chip-labels";
 
@@ -53,6 +55,7 @@ function ChipsPage() {
   const [editLabelOpen, setEditLabelOpen] = useState(false);
   const [labelInstance, setLabelInstance] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState("");
+  const [webhooks, setWebhooks] = useState<Record<string, boolean>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -64,6 +67,17 @@ function ChipsPage() {
     try {
       const list = await fetchInstances();
       setInstances(list);
+      
+      const hooks: Record<string, boolean> = {};
+      await Promise.all(
+        list.map(async (i) => {
+          if (isInstanceConnected(i)) {
+            const h = await getWebhook(i.name);
+            hooks[i.name] = h?.enabled || false;
+          }
+        })
+      );
+      setWebhooks(hooks);
     } catch (e) {
       console.error(e);
       toast.error("Falha ao carregar chips");
@@ -192,6 +206,23 @@ function ChipsPage() {
     }
   };
 
+  const handleToggleWebhook = async (name: string, isCurrentlyEnabled: boolean) => {
+    const globalUrl = localStorage.getItem("global-webhook-url");
+    if (!isCurrentlyEnabled && !globalUrl) {
+      toast.error("Configure uma URL de Webhook na aba 'Config' primeiro.");
+      return;
+    }
+    const targetState = !isCurrentlyEnabled;
+    try {
+      await setWebhook(name, globalUrl || "", targetState);
+      setWebhooks((prev) => ({ ...prev, [name]: targetState }));
+      toast.success(`Webhook ${targetState ? "ativado" : "desativado"} para ${name}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao alterar status do Webhook");
+    }
+  };
+
   return (
     <AppShell>
       <div className="h-full overflow-y-auto p-6">
@@ -248,6 +279,17 @@ function ChipsPage() {
                           >
                             <Pencil className="h-3 w-3" />
                           </Button>
+                          {connected && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`h-6 w-6 transition-colors ${webhooks[i.name] ? 'text-primary hover:text-primary/80' : 'text-muted-foreground hover:text-foreground'}`}
+                              onClick={() => handleToggleWebhook(i.name, webhooks[i.name] || false)}
+                              title={webhooks[i.name] ? "Webhook Ativo (Clique para desativar)" : "Webhook Inativo (Clique para ativar)"}
+                            >
+                              <Webhook className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {i.ownerJid ? i.ownerJid.replace(/@.*$/, "") : i.number || "—"}
