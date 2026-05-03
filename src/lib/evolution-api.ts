@@ -228,3 +228,28 @@ export function isInstanceConnected(i: Instance): boolean {
     .toLowerCase();
   return s === "open" || s === "connected";
 }
+
+// Webhooks
+export interface SetWebhookBody {
+  webhook: {
+    url: string;
+    byEvents: boolean;
+    base64: boolean;
+    events: string[];
+  };
+}
+
+export function setWebhook(instanceName: string, url: string) {
+  const body: SetWebhookBody = {
+    webhook: {
+      url,
+      byEvents: false,
+      base64: false,
+      events: ["MESSAGES_UPSERT"],
+    },
+  };
+  return request<unknown>(`/webhook/set/${encodeURIComponent(instanceName)}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}

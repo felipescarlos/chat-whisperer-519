@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { MessageCircle, Smartphone, Send, History } from "lucide-react";
+import { MessageCircle, Smartphone, Send, History, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -7,6 +7,7 @@ const items = [
   { to: "/chips", label: "Chips", icon: Smartphone },
   { to: "/disparos", label: "Disparos", icon: Send },
   { to: "/historico", label: "Histórico", icon: History },
+  { to: "/configuracoes", label: "Config", icon: Settings },
 ] as const;
 
 export function AppSidebar() {

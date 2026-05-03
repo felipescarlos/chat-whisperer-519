@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as HistoricoRouteImport } from './routes/historico'
 import { Route as DisparosRouteImport } from './routes/disparos'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ChipsRouteImport } from './routes/chips'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -22,6 +23,11 @@ const HistoricoRoute = HistoricoRouteImport.update({
 const DisparosRoute = DisparosRouteImport.update({
   id: '/disparos',
   path: '/disparos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChipsRoute = ChipsRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chips': typeof ChipsRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/disparos': typeof DisparosRoute
   '/historico': typeof HistoricoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chips': typeof ChipsRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/disparos': typeof DisparosRoute
   '/historico': typeof HistoricoRoute
 }
@@ -51,20 +59,28 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/chips': typeof ChipsRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/disparos': typeof DisparosRoute
   '/historico': typeof HistoricoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/chips' | '/disparos' | '/historico'
+  fullPaths: '/' | '/chips' | '/configuracoes' | '/disparos' | '/historico'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/chips' | '/disparos' | '/historico'
-  id: '__root__' | '/' | '/chips' | '/disparos' | '/historico'
+  to: '/' | '/chips' | '/configuracoes' | '/disparos' | '/historico'
+  id:
+    | '__root__'
+    | '/'
+    | '/chips'
+    | '/configuracoes'
+    | '/disparos'
+    | '/historico'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChipsRoute: typeof ChipsRoute
+  ConfiguracoesRoute: typeof ConfiguracoesRoute
   DisparosRoute: typeof DisparosRoute
   HistoricoRoute: typeof HistoricoRoute
 }
@@ -83,6 +99,13 @@ declare module '@tanstack/react-router' {
       path: '/disparos'
       fullPath: '/disparos'
       preLoaderRoute: typeof DisparosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chips': {
@@ -105,6 +128,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChipsRoute: ChipsRoute,
+  ConfiguracoesRoute: ConfiguracoesRoute,
   DisparosRoute: DisparosRoute,
   HistoricoRoute: HistoricoRoute,
 }
