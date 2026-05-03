@@ -373,7 +373,31 @@ function ChipsPage() {
               <div className="text-muted-foreground">Aguardando QR...</div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {!pairingCode && qrInstance && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const inst = instances.find((x) => x.name === qrInstance);
+                  const existing =
+                    (inst?.number || "").replace(/\D/g, "") ||
+                    (inst?.ownerJid || "").replace(/@.*$/, "");
+                  const input = prompt(
+                    "Número com DDI+DDD (ex: 5511999999999):",
+                    existing,
+                  );
+                  if (!input) return;
+                  const num = input.replace(/\D/g, "");
+                  if (num.length < 10) {
+                    toast.error("Número inválido");
+                    return;
+                  }
+                  openQr(qrInstance, num);
+                }}
+              >
+                Usar código no lugar do QR
+              </Button>
+            )}
             <Button variant="outline" onClick={() => qrInstance && refreshQr(qrInstance)}>
               <RefreshCw className="h-4 w-4 mr-2" /> Atualizar agora
             </Button>
