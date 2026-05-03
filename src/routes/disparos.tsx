@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Instance, fetchInstances, isInstanceConnected } from "@/lib/evolution-api";
 import { expandVariations } from "@/lib/broadcast-utils";
 import { getChipDisplayName, loadAllLabels } from "@/lib/chip-labels";
-import { createCampaign, LocalCampaign } from "@/lib/local-queue";
+import { createCampaign, LocalCampaign, BroadcastStatus } from "@/lib/local-queue";
 import { useBroadcastQueue } from "@/lib/useBroadcastQueue";
 
 export const Route = createFileRoute("/disparos")({
@@ -241,7 +241,7 @@ function ProducaoTab({
   setStatus,
 }: {
   campaigns: LocalCampaign[];
-  setStatus: (id: string, s: string) => void;
+  setStatus: (id: string, s: BroadcastStatus) => void;
 }) {
   if (campaigns.length === 0) {
     return (
