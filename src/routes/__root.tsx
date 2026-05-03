@@ -1,5 +1,8 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { useState, useEffect } from "react";
+import { isAuthenticated } from "@/lib/auth";
+import { LoginScreen } from "@/components/LoginScreen";
 
 import appCss from "../styles.css?url";
 
@@ -78,6 +81,25 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  const [isAuth, setIsAuth] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsAuth(isAuthenticated());
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) return null;
+
+  if (!isAuth) {
+    return (
+      <>
+        <LoginScreen onSuccess={() => setIsAuth(true)} />
+        <Toaster theme="dark" position="top-right" />
+      </>
+    );
+  }
+
   return (
     <>
       <Outlet />
