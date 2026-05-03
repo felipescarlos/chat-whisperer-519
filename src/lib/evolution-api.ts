@@ -204,17 +204,51 @@ export function numberToJid(number: string): string {
 }
 
 export function getMessageText(m: Message): string {
-  const msg = m.message;
+  let msg = m.message;
   if (!msg) return "";
+
+  // Handle nested message objects if present
+  if ((msg as any).message) {
+    msg = (msg as any).message;
+  }
+
+  // 1. Handle Revoked/Deleted
+  if ((msg as any).protocolMessage) {
+    const pm = (msg as any).protocolMessage;
+    // Type 0 is REVOKE in Baileys
+    if (pm.type === 0 || pm.type === "REVOKE") {
+      return "🚫 Mensagem apagada";
+    }
+  }
+
+  // 2. Handle Text
   if (msg.conversation) return msg.conversation;
   if (msg.extendedTextMessage?.text) return msg.extendedTextMessage.text;
+
+  // 3. Handle Media
   if (msg.imageMessage?.caption) return `📷 ${msg.imageMessage.caption}`;
-  if ((msg as Record<string, unknown>).imageMessage) return "📷 Foto";
-  if ((msg as Record<string, unknown>).audioMessage) return "🎤 Áudio";
-  if ((msg as Record<string, unknown>).videoMessage) return "🎬 Vídeo";
-  if ((msg as Record<string, unknown>).documentMessage) return "📄 Documento";
-  if ((msg as Record<string, unknown>).stickerMessage) return "Figurinha";
-  return "Mensagem";
+  if (msg.imageMessage) return "📷 Foto";
+  if (msg.videoMessage?.caption) return `🎬 ${msg.videoMessage.caption}`;
+  if (msg.videoMessage) return "🎬 Vídeo";
+  if (msg.audioMessage) return "🎤 Áudio";
+  if (msg.documentMessage?.caption) return `📄 ${msg.documentMessage.caption}`;
+  if (msg.documentMessage) return "📄 Documento";
+  if ((msg as any).stickerMessage) return "Figurinha";
+  
+  // 4. Handle Reactions
+  if ((msg as any).reactionMessage) {
+    return `Reagiu ${(msg as any).reactionMessage.text || ""}`;
+  }
+
+  // 5. Handle View Once
+  if ((msg as any).viewOnceMessage?.message) {
+    return getMessageText({ ...m, message: (msg as any).viewOnceMessage.message });
+  }
+  if ((msg as any).viewOnceMessageV2?.message) {
+    return getMessageText({ ...m, message: (msg as any).viewOnceMessageV2.message });
+  }
+
+  return "(Mensagem)";
 }
 
 export function getChatLastMessageText(c: Chat): string {
