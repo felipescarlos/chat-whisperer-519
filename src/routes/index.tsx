@@ -142,7 +142,7 @@ function ConversasPage() {
     if (!selected) return;
     if (!isBackground) setLoadingMsgs(true);
     try {
-      const msgs = await findMessages(selected.__instance, selected.remoteJid);
+      const msgs = await findMessages(selected.__instance, selected.remoteJid, (selected as any).remoteJidAlt);
       const sorted = [...msgs].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
       
       // Deduplicate by ID
