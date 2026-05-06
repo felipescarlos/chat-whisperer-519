@@ -18,14 +18,16 @@ export const Route = createFileRoute("/configuracoes")({
   component: ConfiguracoesPage,
 });
 
+const DEFAULT_WEBHOOK_URL = "https://hook.us2.make.com/mx1uatc7jvo4geabkp1k9i9he2wrd8na";
+
 function ConfiguracoesPage() {
-  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookUrl, setWebhookUrl] = useState(DEFAULT_WEBHOOK_URL);
   const [isApplying, setIsApplying] = useState(false);
 
-  // Load the saved URL from localStorage as a simple preference
+  // Load the saved URL from localStorage; fallback to default constant
   useEffect(() => {
     const saved = localStorage.getItem("global-webhook-url");
-    if (saved) setWebhookUrl(saved);
+    setWebhookUrl(saved && saved.trim() ? saved : DEFAULT_WEBHOOK_URL);
   }, []);
 
   const handleApplyWebhooks = async () => {
