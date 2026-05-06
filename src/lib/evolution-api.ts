@@ -211,6 +211,7 @@ export function getMessageText(m: Message): string {
   if ((msg as any).message) {
     msg = (msg as any).message;
   }
+  const m2: any = msg;
 
   // 1. Handle Revoked/Deleted
   if ((msg as any).protocolMessage) {
