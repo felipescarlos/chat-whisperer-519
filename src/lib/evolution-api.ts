@@ -143,18 +143,49 @@ export function findChats(instanceName: string) {
   );
 }
 
-export function findMessages(instanceName: string, remoteJid: string) {
-  const body = {
-    where: { remoteJid },
-    limit: 500,
+export async function findMessages(instanceName: string, remoteJid: string, remoteJidAlt?: string | null) {
+  // Try multiple jid variants since Evolution v2 may store messages under
+  // @s.whatsapp.net, @lid, or @c.us depending on the contact.
+  const jids = new Set<string>();
+  if (remoteJid) jids.add(remoteJid);
+  if (remoteJidAlt) jids.add(remoteJidAlt);
+
+  // Also derive plain number variant
+  const num = (remoteJid || remoteJidAlt || "").replace(/@.*$/, "");
+  if (num) {
+    jids.add(`${num}@s.whatsapp.net`);
+    jids.add(`${num}@c.us`);
+  }
+
+  const tryFetch = async (where: Record<string, unknown>) => {
+    try {
+      const r = await request<Message[] | { messages?: { records?: Message[] } }>(
+        `/chat/findMessages/${encodeURIComponent(instanceName)}`,
+        { method: "POST", body: JSON.stringify({ where, limit: 500 }) },
+      );
+      if (Array.isArray(r)) return r;
+      return r?.messages?.records || [];
+    } catch {
+      return [] as Message[];
+    }
   };
-  return request<Message[] | { messages?: { records?: Message[] } }>(
-    `/chat/findMessages/${encodeURIComponent(instanceName)}`,
-    { method: "POST", body: JSON.stringify(body) },
-  ).then((r) => {
-    if (Array.isArray(r)) return r;
-    return r?.messages?.records || [];
-  });
+
+  // First try $in with all jids in a single call
+  const jidArr = Array.from(jids);
+  let results = await tryFetch({ key: { remoteJid: { $in: jidArr } } });
+  if (results.length === 0) {
+    results = await tryFetch({ "key.remoteJid": { $in: jidArr } });
+  }
+  if (results.length === 0) {
+    // Fallback: query each individually and merge
+    const all: Message[] = [];
+    for (const jid of jidArr) {
+      const part = await tryFetch({ key: { remoteJid: jid } });
+      all.push(...part);
+    }
+    results = all;
+  }
+  return results;
 }
 
 export function sendText(instanceName: string, number: string, text: string) {
