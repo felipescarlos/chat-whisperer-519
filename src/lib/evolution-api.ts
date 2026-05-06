@@ -223,18 +223,18 @@ export function getMessageText(m: Message): string {
   }
 
   // 2. Handle Text
-  if (msg.conversation) return msg.conversation;
-  if (msg.extendedTextMessage?.text) return msg.extendedTextMessage.text;
+  if (m2.conversation) return m2.conversation;
+  if (m2.extendedTextMessage?.text) return m2.extendedTextMessage.text;
 
   // 3. Handle Media
-  if (msg.imageMessage?.caption) return `📷 ${msg.imageMessage.caption}`;
-  if (msg.imageMessage) return "📷 Foto";
-  if (msg.videoMessage?.caption) return `🎬 ${msg.videoMessage.caption}`;
-  if (msg.videoMessage) return "🎬 Vídeo";
-  if (msg.audioMessage) return "🎤 Áudio";
-  if (msg.documentMessage?.caption) return `📄 ${msg.documentMessage.caption}`;
-  if (msg.documentMessage) return "📄 Documento";
-  if ((msg as any).stickerMessage) return "Figurinha";
+  if (m2.imageMessage?.caption) return `📷 ${m2.imageMessage.caption}`;
+  if (m2.imageMessage) return "📷 Foto";
+  if (m2.videoMessage?.caption) return `🎬 ${m2.videoMessage.caption}`;
+  if (m2.videoMessage) return "🎬 Vídeo";
+  if (m2.audioMessage) return "🎤 Áudio";
+  if (m2.documentMessage?.caption) return `📄 ${m2.documentMessage.caption}`;
+  if (m2.documentMessage) return "📄 Documento";
+  if (m2.stickerMessage) return "Figurinha";
   
   // 4. Handle Reactions
   if ((msg as any).reactionMessage) {
