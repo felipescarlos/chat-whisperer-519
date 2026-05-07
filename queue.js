@@ -128,7 +128,7 @@ router.use((req, res, next) => {
 
 // POST /campaigns — cria campanha
 router.post("/campaigns", (req, res) => {
-  const { name, message, min_sec, max_sec, per_chip_limit, chips, numbers } = req.body;
+  const { name, parentId, message, min_sec, max_sec, per_chip_limit, chips, numbers } = req.body;
 
   if (!message || !chips?.length || !numbers?.length) {
     return res
@@ -140,6 +140,7 @@ router.post("/campaigns", (req, res) => {
   const newCampaign = {
     id: `camp_${Date.now()}`,
     name: name || `Campanha ${new Date().toLocaleDateString("pt-BR")}`,
+    ...(parentId ? { parentId } : {}),
     created_at: Date.now(),
     status: "running",
     message,

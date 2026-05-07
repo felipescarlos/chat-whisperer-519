@@ -12,6 +12,7 @@ export interface QueueNumber {
 
 export interface VPSCampaign {
   id: string;
+  parentId?: string;
   name: string;
   created_at: number;
   status: BroadcastStatus;

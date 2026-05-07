@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Clock } from "lucide-react";
+import { Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Clock, RefreshCw, GitBranch } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +14,11 @@ import { toast } from "sonner";
 import { Instance, fetchInstances, isInstanceConnected } from "@/lib/evolution-api";
 import { expandVariations } from "@/lib/broadcast-utils";
 import { getChipDisplayName, loadAllLabels } from "@/lib/chip-labels";
-import { createVPSCampaign, retryVPSCampaignErrors, translateEvolutionError } from "@/lib/vps-queue";
+import { createVPSCampaign, translateEvolutionError } from "@/lib/vps-queue";
 import { useBroadcastQueue } from "@/lib/useBroadcastQueue";
 import { VPSCampaign, BroadcastStatus } from "@/lib/vps-queue";
-import { RefreshCw } from "lucide-react";
+import { ConversaDialog } from "@/components/ConversaDialog";
+import { RetentarDialog } from "@/components/RetentarDialog";
 
 export const Route = createFileRoute("/disparos")({
   head: () => ({
@@ -68,7 +69,7 @@ function DisparosPage() {
             </TabsContent>
 
             <TabsContent value="producao">
-              <ProducaoTab campaigns={campaigns} setStatus={setStatus} />
+              <ProducaoTab campaigns={campaigns} setStatus={setStatus} onRefresh={refresh} />
             </TabsContent>
           </Tabs>
         </div>
@@ -262,224 +263,196 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function ProducaoTab({
-  campaigns,
+function CampanhaCard({
+  camp,
+  isSubcampaign = false,
   setStatus,
+  onRetentarClick,
 }: {
-  campaigns: VPSCampaign[];
+  camp: VPSCampaign;
+  isSubcampaign?: boolean;
   setStatus: (id: string, s: BroadcastStatus) => void;
+  onRetentarClick: (camp: VPSCampaign) => void;
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState(false);
   const [errorDialog, setErrorDialog] = useState<{ number: string; message: string } | null>(null);
-  const [retrying, setRetrying] = useState<Set<string>>(new Set());
+  const [conversaDialog, setConversaDialog] = useState<string | null>(null);
 
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const handleRetry = async (id: string) => {
-    setRetrying((prev) => new Set(prev).add(id));
-    try {
-      await retryVPSCampaignErrors(id);
-      toast.success("Números com erro reenfileirados!");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao retentar");
-    } finally {
-      setRetrying((prev) => { const n = new Set(prev); n.delete(id); return n; });
-    }
-  };
-
-  if (campaigns.length === 0) {
-    return (
-      <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
-        <Server className="h-10 w-10 mx-auto mb-3 opacity-20" />
-        Nenhuma campanha no servidor.
-      </div>
-    );
-  }
+  const total = camp.numbers.length;
+  const sent = camp.numbers.filter((n) => n.status === "sent").length;
+  const errors = camp.numbers.filter((n) => n.status === "error").length;
+  const pending = camp.numbers.filter((n) => n.status === "pending").length;
+  const pct = total ? ((sent + errors) / total) * 100 : 0;
 
   return (
     <>
-      <div className="space-y-4">
-        {campaigns.map((camp) => {
-          const total = camp.numbers.length;
-          const sent = camp.numbers.filter((n) => n.status === "sent").length;
-          const errors = camp.numbers.filter((n) => n.status === "error").length;
-          const pending = camp.numbers.filter((n) => n.status === "pending").length;
-          const pct = total ? ((sent + errors) / total) * 100 : 0;
-          const isExpanded = expanded.has(camp.id);
+      <div
+        className={`bg-card border border-border rounded-lg flex flex-col gap-3 ${
+          isSubcampaign ? "p-3 ml-6 border-l-4 border-l-primary/30" : "p-5 gap-4"
+        }`}
+      >
+        {/* Indicador de subcampanha */}
+        {isSubcampaign && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <GitBranch className="h-3 w-3" />
+            <span>Subcampanha · retentativa</span>
+          </div>
+        )}
 
-          return (
-            <div
-              key={camp.id}
-              className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4"
+        {/* Cabeçalho */}
+        <div className="flex justify-between items-start">
+          <div>
+            <h3
+              className={`font-semibold flex items-center gap-2 ${isSubcampaign ? "text-base" : "text-lg"}`}
             >
-              {/* Cabeçalho */}
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
-                    {camp.name || "Campanha"}
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full ${
-                        camp.status === "running"
-                          ? "bg-primary/20 text-primary"
-                          : camp.status === "completed"
-                            ? "bg-success/20 text-success"
-                            : camp.status === "paused"
-                              ? "bg-warning/20 text-warning"
-                              : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {camp.status.toUpperCase()}
-                    </span>
-                  </h3>
-                  <div className="text-xs text-muted-foreground mt-1 max-w-2xl truncate">
-                    {camp.message}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {camp.status === "running" && (
-                    <Button variant="secondary" size="sm" onClick={() => setStatus(camp.id, "paused")}>
-                      <Pause className="h-4 w-4 mr-1" /> Pausar
-                    </Button>
-                  )}
-                  {camp.status === "paused" && (
-                    <Button variant="outline" size="sm" onClick={() => setStatus(camp.id, "running")}>
-                      <Play className="h-4 w-4 mr-1" /> Retomar
-                    </Button>
-                  )}
-                  {(camp.status === "running" || camp.status === "paused") && (
-                    <Button variant="destructive" size="sm" onClick={() => setStatus(camp.id, "stopped")}>
-                      <Square className="h-4 w-4 mr-1" /> Cancelar
-                    </Button>
-                  )}
-                  {errors > 0 && camp.status !== "running" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRetry(camp.id)}
-                      disabled={retrying.has(camp.id)}
-                      className="text-warning border-warning/50 hover:bg-warning/10"
-                    >
-                      <RefreshCw className={`h-4 w-4 mr-1 ${retrying.has(camp.id) ? "animate-spin" : ""}`} />
-                      Retentar erros ({errors})
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Progresso */}
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Progresso:</span>
-                    <strong>{sent + errors} / {total}</strong>
-                  </span>
-                  <span className="flex gap-3 text-xs font-medium">
-                    <span className="flex items-center text-success">
-                      <CheckCircle2 className="h-3 w-3 mr-1" /> {sent} enviados
-                    </span>
-                    <span className="flex items-center text-destructive">
-                      <AlertCircle className="h-3 w-3 mr-1" /> {errors} erros
-                    </span>
-                    <span className="flex items-center text-muted-foreground">
-                      <Clock className="h-3 w-3 mr-1" /> {pending} pendentes
-                    </span>
-                  </span>
-                </div>
-                <Progress value={pct} className="h-2" />
-              </div>
-
-              {/* Info + botão expandir */}
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-muted-foreground">
-                  Chips: {camp.chips?.join(", ") || "Nenhum"} | Intervalo: {camp.min_sec}s – {camp.max_sec}s
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => toggleExpand(camp.id)}
-                >
-                  {isExpanded ? (
-                    <><ChevronUp className="h-4 w-4 mr-1" /> Ocultar números</>
-                  ) : (
-                    <><ChevronDown className="h-4 w-4 mr-1" /> Ver números ({total})</>
-                  )}
-                </Button>
-              </div>
-
-              {/* Lista expandida de números */}
-              {isExpanded && (
-                <div className="border border-border rounded-md overflow-hidden">
-                  <div className="max-h-80 overflow-y-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted sticky top-0">
-                        <tr>
-                          <th className="text-left px-3 py-2 font-medium">#</th>
-                          <th className="text-left px-3 py-2 font-medium">Número</th>
-                          <th className="text-left px-3 py-2 font-medium">Status</th>
-                          <th className="text-left px-3 py-2 font-medium">Chip usado</th>
-                          <th className="text-left px-3 py-2 font-medium"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {camp.numbers.map((n, idx) => (
-                          <tr key={idx} className="border-t border-border hover:bg-accent/30">
-                            <td className="px-3 py-2 text-muted-foreground">{idx + 1}</td>
-                            <td className="px-3 py-2 font-mono">+{n.number}</td>
-                            <td className="px-3 py-2">
-                              {n.status === "sent" && (
-                                <span className="flex items-center gap-1 text-success font-medium">
-                                  <CheckCircle2 className="h-3 w-3" /> Enviado
-                                </span>
-                              )}
-                              {n.status === "error" && (
-                                <span className="flex items-center gap-1 text-destructive font-medium">
-                                  <AlertCircle className="h-3 w-3" /> Erro
-                                </span>
-                              )}
-                              {n.status === "pending" && (
-                                <span className="flex items-center gap-1 text-muted-foreground">
-                                  <Clock className="h-3 w-3" /> Pendente
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-muted-foreground">
-                              {n.instance || "—"}
-                            </td>
-                            <td className="px-3 py-2">
-                              {n.status === "error" && n.error_message && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 text-xs text-destructive hover:text-destructive"
-                                  onClick={() =>
-                                    setErrorDialog({
-                                      number: n.number,
-                                      message: n.error_message!,
-                                    })
-                                  }
-                                >
-                                  Ver erro
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+              {camp.name || "Campanha"}
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full ${
+                  camp.status === "running"
+                    ? "bg-primary/20 text-primary"
+                    : camp.status === "completed"
+                      ? "bg-success/20 text-success"
+                      : camp.status === "paused"
+                        ? "bg-warning/20 text-warning"
+                        : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {camp.status.toUpperCase()}
+              </span>
+            </h3>
+            <div className="text-xs text-muted-foreground mt-0.5 max-w-2xl truncate">
+              {camp.message}
             </div>
-          );
-        })}
+          </div>
+          <div className="flex gap-2 flex-wrap justify-end">
+            {camp.status === "running" && (
+              <Button variant="secondary" size="sm" onClick={() => setStatus(camp.id, "paused")}>
+                <Pause className="h-4 w-4 mr-1" /> Pausar
+              </Button>
+            )}
+            {camp.status === "paused" && (
+              <Button variant="outline" size="sm" onClick={() => setStatus(camp.id, "running")}>
+                <Play className="h-4 w-4 mr-1" /> Retomar
+              </Button>
+            )}
+            {(camp.status === "running" || camp.status === "paused") && (
+              <Button variant="destructive" size="sm" onClick={() => setStatus(camp.id, "stopped")}>
+                <Square className="h-4 w-4 mr-1" /> Cancelar
+              </Button>
+            )}
+            {errors > 0 && camp.status !== "running" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onRetentarClick(camp)}
+                className="text-warning border-warning/50 hover:bg-warning/10"
+              >
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Retentar ({errors})
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Progresso */}
+        <div>
+          <div className="flex justify-between text-sm mb-1">
+            <span className="flex items-center gap-2">
+              <span className="text-muted-foreground">Progresso:</span>
+              <strong>{sent + errors} / {total}</strong>
+            </span>
+            <span className="flex gap-3 text-xs font-medium">
+              <span className="flex items-center text-success">
+                <CheckCircle2 className="h-3 w-3 mr-1" /> {sent}
+              </span>
+              <span className="flex items-center text-destructive">
+                <AlertCircle className="h-3 w-3 mr-1" /> {errors}
+              </span>
+              <span className="flex items-center text-muted-foreground">
+                <Clock className="h-3 w-3 mr-1" /> {pending}
+              </span>
+            </span>
+          </div>
+          <Progress value={pct} className="h-2" />
+        </div>
+
+        {/* Info + expandir */}
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-muted-foreground">
+            {camp.chips?.join(", ")} · {camp.min_sec}s – {camp.max_sec}s
+          </div>
+          <Button variant="ghost" size="sm" className="text-xs" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? (
+              <><ChevronUp className="h-4 w-4 mr-1" /> Ocultar</>
+            ) : (
+              <><ChevronDown className="h-4 w-4 mr-1" /> Ver números ({total})</>
+            )}
+          </Button>
+        </div>
+
+        {/* Lista de números */}
+        {expanded && (
+          <div className="border border-border rounded-md overflow-hidden">
+            <div className="max-h-72 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-muted sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">#</th>
+                    <th className="text-left px-3 py-2 font-medium">Número</th>
+                    <th className="text-left px-3 py-2 font-medium">Status</th>
+                    <th className="text-left px-3 py-2 font-medium">Chip</th>
+                    <th className="text-left px-3 py-2 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {camp.numbers.map((n, idx) => (
+                    <tr key={idx} className="border-t border-border hover:bg-accent/30">
+                      <td className="px-3 py-2 text-muted-foreground">{idx + 1}</td>
+                      <td className="px-3 py-2 font-mono">
+                        <button
+                          className="hover:text-primary hover:underline transition-colors"
+                          onClick={() => setConversaDialog(n.number)}
+                        >
+                          +{n.number}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2">
+                        {n.status === "sent" && (
+                          <span className="flex items-center gap-1 text-success font-medium">
+                            <CheckCircle2 className="h-3 w-3" /> Enviado
+                          </span>
+                        )}
+                        {n.status === "error" && (
+                          <span className="flex items-center gap-1 text-destructive font-medium">
+                            <AlertCircle className="h-3 w-3" /> Erro
+                          </span>
+                        )}
+                        {n.status === "pending" && (
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <Clock className="h-3 w-3" /> Pendente
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{n.instance || "—"}</td>
+                      <td className="px-3 py-2">
+                        {n.status === "error" && n.error_message && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs text-destructive hover:text-destructive"
+                            onClick={() => setErrorDialog({ number: n.number, message: n.error_message! })}
+                          >
+                            Ver erro
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pop-up de erro */}
@@ -491,7 +464,7 @@ function ProducaoTab({
             </DialogTitle>
           </DialogHeader>
           {errorDialog && (() => {
-            const translation = translateEvolutionError(errorDialog.message);
+            const t = translateEvolutionError(errorDialog.message);
             return (
               <div className="space-y-4">
                 <div>
@@ -499,15 +472,13 @@ function ProducaoTab({
                   <p className="font-mono text-sm">+{errorDialog.number}</p>
                 </div>
                 <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4 space-y-2">
-                  <p className="font-semibold text-sm text-destructive">{translation.title}</p>
-                  <p className="text-sm text-foreground">{translation.explanation}</p>
+                  <p className="font-semibold text-sm text-destructive">{t.title}</p>
+                  <p className="text-sm">{t.explanation}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Mensagem técnica original</p>
+                  <p className="text-xs text-muted-foreground mb-1">Mensagem técnica</p>
                   <div className="bg-muted rounded-md p-3">
-                    <p className="text-xs font-mono break-all text-muted-foreground">
-                      {errorDialog.message}
-                    </p>
+                    <p className="text-xs font-mono break-all text-muted-foreground">{errorDialog.message}</p>
                   </div>
                 </div>
               </div>
@@ -515,6 +486,113 @@ function ProducaoTab({
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Pop-up de conversa */}
+      <ConversaDialog
+        number={conversaDialog ?? ""}
+        chips={camp.chips}
+        open={!!conversaDialog}
+        onClose={() => setConversaDialog(null)}
+      />
+    </>
+  );
+}
+
+function ProducaoTab({
+  campaigns,
+  setStatus,
+  onRefresh,
+}: {
+  campaigns: VPSCampaign[];
+  setStatus: (id: string, s: BroadcastStatus) => void;
+  onRefresh: () => void;
+}) {
+  const [retentarCamp, setRetentarCamp] = useState<VPSCampaign | null>(null);
+  const [subExpanded, setSubExpanded] = useState<Set<string>>(new Set());
+
+  const mainCampaigns = campaigns.filter((c) => !c.parentId);
+  const subMap = new Map<string, VPSCampaign[]>();
+  campaigns.filter((c) => c.parentId).forEach((c) => {
+    const arr = subMap.get(c.parentId!) || [];
+    arr.push(c);
+    subMap.set(c.parentId!, arr);
+  });
+
+  if (mainCampaigns.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
+        <Server className="h-10 w-10 mx-auto mb-3 opacity-20" />
+        Nenhuma campanha no servidor.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="space-y-6">
+        {mainCampaigns.map((camp) => {
+          const subs = subMap.get(camp.id) || [];
+          const hasSubs = subs.length > 0;
+          const subsExpanded = subExpanded.has(camp.id);
+
+          return (
+            <div key={camp.id} className="space-y-2">
+              <CampanhaCard
+                camp={camp}
+                setStatus={setStatus}
+                onRetentarClick={setRetentarCamp}
+              />
+
+              {/* Subcampanhas */}
+              {hasSubs && (
+                <div>
+                  <button
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground ml-6 mb-2 hover:text-foreground transition-colors"
+                    onClick={() =>
+                      setSubExpanded((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(camp.id)) next.delete(camp.id);
+                        else next.add(camp.id);
+                        return next;
+                      })
+                    }
+                  >
+                    <GitBranch className="h-3 w-3" />
+                    {subsExpanded ? "Ocultar" : "Ver"} {subs.length} subcampanha{subs.length !== 1 ? "s" : ""}
+                    {subsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </button>
+
+                  {subsExpanded && (
+                    <div className="space-y-2">
+                      {subs
+                        .sort((a, b) => a.created_at - b.created_at)
+                        .map((sub) => (
+                          <CampanhaCard
+                            key={sub.id}
+                            camp={sub}
+                            isSubcampaign
+                            setStatus={setStatus}
+                            onRetentarClick={setRetentarCamp}
+                          />
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Dialog de retentar */}
+      {retentarCamp && (
+        <RetentarDialog
+          campaign={retentarCamp}
+          open={!!retentarCamp}
+          onClose={() => setRetentarCamp(null)}
+          onSuccess={onRefresh}
+        />
+      )}
     </>
   );
 }
