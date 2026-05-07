@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Play, Pause, Square, Send, HardDrive, CheckCircle2, AlertCircle } from "lucide-react";
+import { Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,14 +13,15 @@ import { toast } from "sonner";
 import { Instance, fetchInstances, isInstanceConnected } from "@/lib/evolution-api";
 import { expandVariations } from "@/lib/broadcast-utils";
 import { getChipDisplayName, loadAllLabels } from "@/lib/chip-labels";
-import { createCampaign, LocalCampaign, BroadcastStatus } from "@/lib/local-queue";
+import { createVPSCampaign } from "@/lib/vps-queue";
 import { useBroadcastQueue } from "@/lib/useBroadcastQueue";
+import { VPSCampaign, BroadcastStatus } from "@/lib/vps-queue";
 
 export const Route = createFileRoute("/disparos")({
   head: () => ({
     meta: [
       { title: "Disparos — WhatsApp Painel" },
-      { name: "description", content: "Disparos em massa com fila local." },
+      { name: "description", content: "Disparos em massa com fila no servidor." },
     ],
   }),
   component: DisparosPage,
@@ -28,9 +29,7 @@ export const Route = createFileRoute("/disparos")({
 
 function DisparosPage() {
   const [activeTab, setActiveTab] = useState("novo");
-
-  // Instanciar o hook aqui garante que a fila rode enquanto a página /disparos estiver aberta
-  const { campaigns, setStatus, refresh } = useBroadcastQueue();
+  const { campaigns, setStatus, refresh, error } = useBroadcastQueue();
 
   return (
     <AppShell>
@@ -39,16 +38,21 @@ function DisparosPage() {
           <div>
             <h1 className="text-2xl font-bold">Disparos em Massa</h1>
             <p className="text-sm text-muted-foreground">
-              Fila local. Feche a aba para pausar, abra a aba para retomar os envios
-              automaticamente.
+              Fila no servidor — os disparos continuam mesmo com o computador desligado.
             </p>
           </div>
+
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-md px-4 py-3">
+              Erro ao conectar com o servidor: {error}
+            </div>
+          )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
               <TabsTrigger value="novo">Nova Campanha</TabsTrigger>
               <TabsTrigger value="producao" className="flex items-center gap-2">
-                <HardDrive className="h-4 w-4" /> Produção Local
+                <Server className="h-4 w-4" /> Produção
               </TabsTrigger>
             </TabsList>
 
@@ -80,6 +84,7 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
   const [maxSec, setMaxSec] = useState(30);
   const [perChipLimit, setPerChipLimit] = useState(50);
   const [labels, setLabels] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setLabels(loadAllLabels());
@@ -97,7 +102,7 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
     });
   };
 
-  const startCampaign = () => {
+  const startCampaign = async () => {
     const list = numbers
       .split("\n")
       .map((n) => n.replace(/\D/g, ""))
@@ -108,20 +113,24 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
     if (list.length === 0) return toast.error("Cole ao menos 1 número");
     if (!message.trim()) return toast.error("Informe a mensagem");
 
-    const mappedNumbers = list.map((n) => ({ number: n, status: "pending" as const }));
-
-    createCampaign({
-      message,
-      min_sec: minSec,
-      max_sec: maxSec,
-      per_chip_limit: perChipLimit,
-      chips,
-      numbers: mappedNumbers,
-    });
-
-    toast.success("Campanha adicionada à Fila Local!");
-    setNumbers("");
-    onCreated();
+    setLoading(true);
+    try {
+      await createVPSCampaign({
+        message,
+        min_sec: minSec,
+        max_sec: maxSec,
+        per_chip_limit: perChipLimit,
+        chips,
+        numbers: list.map((n) => ({ number: n, status: "pending" as const })),
+      });
+      toast.success("Campanha enviada para o servidor!");
+      setNumbers("");
+      onCreated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao criar campanha");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -227,9 +236,9 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
           </div>
         </div>
 
-        <Button onClick={startCampaign} className="w-full" size="lg">
+        <Button onClick={startCampaign} disabled={loading} className="w-full" size="lg">
           <Send className="h-4 w-4 mr-2" />
-          Iniciar Fila Local
+          {loading ? "Enviando para o servidor..." : "Iniciar no Servidor"}
         </Button>
       </div>
     </div>
@@ -240,14 +249,14 @@ function ProducaoTab({
   campaigns,
   setStatus,
 }: {
-  campaigns: LocalCampaign[];
+  campaigns: VPSCampaign[];
   setStatus: (id: string, s: BroadcastStatus) => void;
 }) {
   if (campaigns.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
-        <HardDrive className="h-10 w-10 mx-auto mb-3 opacity-20" />
-        Nenhuma campanha na fila local.
+        <Server className="h-10 w-10 mx-auto mb-3 opacity-20" />
+        Nenhuma campanha no servidor.
       </div>
     );
   }
@@ -335,7 +344,7 @@ function ProducaoTab({
             </div>
 
             <div className="text-xs text-muted-foreground">
-              Chips: {camp.chips?.join(", ") || "Nenhum"} | Intervalo: {camp.min_sec}s -{" "}
+              Chips: {camp.chips?.join(", ") || "Nenhum"} | Intervalo: {camp.min_sec}s –{" "}
               {camp.max_sec}s
             </div>
           </div>
