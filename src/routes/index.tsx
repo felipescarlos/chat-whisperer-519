@@ -68,6 +68,7 @@ function ConversasPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastMessageIdRef = useRef<string | null>(null);
 
   // Load instances + their chats
   const loadChats = useCallback(async (isBackground = false) => {
