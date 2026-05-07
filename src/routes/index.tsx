@@ -68,6 +68,7 @@ function ConversasPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastMessageIdRef = useRef<string | null>(null);
 
   // Load instances + their chats
   const loadChats = useCallback(async (isBackground = false) => {
@@ -88,7 +89,10 @@ function ConversasPage() {
           }
         }),
       );
-      setChatsByInstance(result);
+      setChatsByInstance((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(result)) return prev;
+        return result;
+      });
     } catch (e) {
       if (!isBackground) {
         console.error(e);
@@ -101,7 +105,7 @@ function ConversasPage() {
 
   useEffect(() => {
     loadChats();
-    const interval = setInterval(() => loadChats(true), 4000);
+    const interval = setInterval(() => loadChats(true), 15000);
     return () => clearInterval(interval);
   }, [loadChats]);
 
@@ -142,9 +146,14 @@ function ConversasPage() {
     if (!selected) return;
     if (!isBackground) setLoadingMsgs(true);
     try {
-      const msgs = await findMessages(selected.__instance, selected.remoteJid, (selected as any).remoteJidAlt);
+      const msgs = await findMessages(
+        selected.__instance,
+        selected.remoteJid,
+        (selected as any).remoteJidAlt,
+        isBackground ? 20 : 500,
+      );
       const sorted = [...msgs].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
-      
+
       // Deduplicate by ID
       const unique: Message[] = [];
       const ids = new Set();
@@ -155,10 +164,10 @@ function ConversasPage() {
         }
       }
 
-      setMessages(prev => {
-        if (JSON.stringify(prev) === JSON.stringify(unique)) return prev;
-        return unique;
-      });
+      const latestId = unique[unique.length - 1]?.key?.id ?? null;
+      if (isBackground && latestId === lastMessageIdRef.current) return;
+      lastMessageIdRef.current = latestId;
+      setMessages(unique);
     } catch (e) {
       if (!isBackground) {
         console.error(e);
@@ -171,8 +180,9 @@ function ConversasPage() {
 
   useEffect(() => {
     setMessages([]);
+    lastMessageIdRef.current = null;
     loadMessages();
-    const interval = setInterval(() => loadMessages(true), 2500);
+    const interval = setInterval(() => loadMessages(true), 5000);
     return () => clearInterval(interval);
   }, [loadMessages, selected]);
 

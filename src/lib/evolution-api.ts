@@ -143,7 +143,7 @@ export function findChats(instanceName: string) {
   );
 }
 
-export async function findMessages(instanceName: string, remoteJid: string, remoteJidAlt?: string | null) {
+export async function findMessages(instanceName: string, remoteJid: string, remoteJidAlt?: string | null, limit = 500) {
   // Try multiple jid variants since Evolution v2 may store messages under
   // @s.whatsapp.net, @lid, or @c.us depending on the contact.
   const jids = new Set<string>();
@@ -161,7 +161,7 @@ export async function findMessages(instanceName: string, remoteJid: string, remo
     try {
       const r = await request<Message[] | { messages?: { records?: Message[] } }>(
         `/chat/findMessages/${encodeURIComponent(instanceName)}`,
-        { method: "POST", body: JSON.stringify({ where, limit: 500 }) },
+        { method: "POST", body: JSON.stringify({ where, limit }) },
       );
       if (Array.isArray(r)) return r;
       return r?.messages?.records || [];
