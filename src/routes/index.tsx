@@ -89,7 +89,10 @@ function ConversasPage() {
           }
         }),
       );
-      setChatsByInstance(result);
+      setChatsByInstance((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(result)) return prev;
+        return result;
+      });
     } catch (e) {
       if (!isBackground) {
         console.error(e);
