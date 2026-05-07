@@ -8,7 +8,7 @@ const path = require("path");
 const axios = require("axios");
 const express = require("express");
 
-const CAMPAIGNS_FILE = path.join(__dirname, "../campaigns.json");
+const CAMPAIGNS_FILE = path.join("/app/data", "campaigns.json");
 const EVOLUTION_BASE = "https://wpp.rodrigobernardo.com.br";
 const EVOLUTION_API_KEY = "Bp7UVb0Qg4bsDivvzNdOsjSZfRC07QGP";
 
