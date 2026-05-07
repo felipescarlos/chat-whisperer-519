@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { MessageCircle, Smartphone, Send, History, Settings, LogOut } from "lucide-react";
+import { MessageCircle, Smartphone, Send, History, Settings, LogOut, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth";
 
@@ -8,6 +8,7 @@ const items = [
   { to: "/chips", label: "Chips", icon: Smartphone },
   { to: "/disparos", label: "Disparos", icon: Send },
   { to: "/historico", label: "Histórico", icon: History },
+  { to: "/agente", label: "Agente", icon: Bot },
   { to: "/configuracoes", label: "Config", icon: Settings },
 ] as const;
 
