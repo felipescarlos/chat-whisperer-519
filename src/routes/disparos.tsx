@@ -14,9 +14,10 @@ import { toast } from "sonner";
 import { Instance, fetchInstances, isInstanceConnected } from "@/lib/evolution-api";
 import { expandVariations } from "@/lib/broadcast-utils";
 import { getChipDisplayName, loadAllLabels } from "@/lib/chip-labels";
-import { createVPSCampaign } from "@/lib/vps-queue";
+import { createVPSCampaign, retryVPSCampaignErrors, translateEvolutionError } from "@/lib/vps-queue";
 import { useBroadcastQueue } from "@/lib/useBroadcastQueue";
 import { VPSCampaign, BroadcastStatus } from "@/lib/vps-queue";
+import { RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/disparos")({
   head: () => ({
@@ -79,6 +80,7 @@ function DisparosPage() {
 function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [campaignName, setCampaignName] = useState("");
   const [numbers, setNumbers] = useState("");
   const [message, setMessage] = useState("{Oi|Olá|E aí}, tudo bem?");
   const [minSec, setMinSec] = useState(10);
@@ -117,6 +119,7 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
     setLoading(true);
     try {
       await createVPSCampaign({
+        name: campaignName.trim() || `Campanha ${new Date().toLocaleDateString("pt-BR")}`,
         message,
         min_sec: minSec,
         max_sec: maxSec,
@@ -126,6 +129,7 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
       });
       toast.success("Campanha enviada para o servidor!");
       setNumbers("");
+      setCampaignName("");
       onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao criar campanha");
@@ -192,6 +196,18 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
 
       <div className="space-y-4">
         <div className="bg-card border border-border rounded-lg p-4">
+          <Label htmlFor="campaign-name" className="mb-2 block">
+            Nome da campanha
+          </Label>
+          <Input
+            id="campaign-name"
+            placeholder={`Campanha ${new Date().toLocaleDateString("pt-BR")}`}
+            value={campaignName}
+            onChange={(e) => setCampaignName(e.target.value)}
+          />
+        </div>
+
+        <div className="bg-card border border-border rounded-lg p-4">
           <Label htmlFor="msg" className="mb-2 block">
             Mensagem (suporta spintax: {"{oi|olá|e aí}"})
           </Label>
@@ -255,6 +271,7 @@ function ProducaoTab({
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [errorDialog, setErrorDialog] = useState<{ number: string; message: string } | null>(null);
+  const [retrying, setRetrying] = useState<Set<string>>(new Set());
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -263,6 +280,18 @@ function ProducaoTab({
       else next.add(id);
       return next;
     });
+  };
+
+  const handleRetry = async (id: string) => {
+    setRetrying((prev) => new Set(prev).add(id));
+    try {
+      await retryVPSCampaignErrors(id);
+      toast.success("Números com erro reenfileirados!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao retentar");
+    } finally {
+      setRetrying((prev) => { const n = new Set(prev); n.delete(id); return n; });
+    }
   };
 
   if (campaigns.length === 0) {
@@ -294,7 +323,7 @@ function ProducaoTab({
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-semibold text-lg flex items-center gap-2">
-                    Campanha
+                    {camp.name || "Campanha"}
                     <span
                       className={`text-xs px-2 py-1 rounded-full ${
                         camp.status === "running"
@@ -327,6 +356,18 @@ function ProducaoTab({
                   {(camp.status === "running" || camp.status === "paused") && (
                     <Button variant="destructive" size="sm" onClick={() => setStatus(camp.id, "stopped")}>
                       <Square className="h-4 w-4 mr-1" /> Cancelar
+                    </Button>
+                  )}
+                  {errors > 0 && camp.status !== "running" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRetry(camp.id)}
+                      disabled={retrying.has(camp.id)}
+                      className="text-warning border-warning/50 hover:bg-warning/10"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-1 ${retrying.has(camp.id) ? "animate-spin" : ""}`} />
+                      Retentar erros ({errors})
                     </Button>
                   )}
                 </div>
@@ -449,20 +490,29 @@ function ProducaoTab({
               <AlertCircle className="h-5 w-5" /> Erro no envio
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Número</p>
-              <p className="font-mono text-sm">+{errorDialog?.number}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Mensagem de erro</p>
-              <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
-                <p className="text-sm text-destructive font-mono break-all">
-                  {errorDialog?.message}
-                </p>
+          {errorDialog && (() => {
+            const translation = translateEvolutionError(errorDialog.message);
+            return (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Número</p>
+                  <p className="font-mono text-sm">+{errorDialog.number}</p>
+                </div>
+                <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4 space-y-2">
+                  <p className="font-semibold text-sm text-destructive">{translation.title}</p>
+                  <p className="text-sm text-foreground">{translation.explanation}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Mensagem técnica original</p>
+                  <div className="bg-muted rounded-md p-3">
+                    <p className="text-xs font-mono break-all text-muted-foreground">
+                      {errorDialog.message}
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </>

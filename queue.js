@@ -128,7 +128,7 @@ router.use((req, res, next) => {
 
 // POST /campaigns — cria campanha
 router.post("/campaigns", (req, res) => {
-  const { message, min_sec, max_sec, per_chip_limit, chips, numbers } = req.body;
+  const { name, message, min_sec, max_sec, per_chip_limit, chips, numbers } = req.body;
 
   if (!message || !chips?.length || !numbers?.length) {
     return res
@@ -139,6 +139,7 @@ router.post("/campaigns", (req, res) => {
   const campaigns = loadCampaigns();
   const newCampaign = {
     id: `camp_${Date.now()}`,
+    name: name || `Campanha ${new Date().toLocaleDateString("pt-BR")}`,
     created_at: Date.now(),
     status: "running",
     message,
@@ -165,6 +166,33 @@ router.post("/campaigns", (req, res) => {
 // GET /campaigns — lista campanhas
 router.get("/campaigns", (req, res) => {
   res.json(loadCampaigns());
+});
+
+// POST /campaigns/:id/retry — reenfileira números com erro
+router.post("/campaigns/:id/retry", (req, res) => {
+  const campaigns = loadCampaigns();
+  const camp = campaigns.find((c) => c.id === req.params.id);
+
+  if (!camp) return res.status(404).json({ error: "Campanha não encontrada" });
+
+  const errorNumbers = camp.numbers.filter((n) => n.status === "error");
+  if (errorNumbers.length === 0) {
+    return res.status(400).json({ error: "Nenhum número com erro para retentar" });
+  }
+
+  // Resetar números com erro de volta para pendente
+  errorNumbers.forEach((n) => {
+    n.status = "pending";
+    delete n.error_message;
+    delete n.instance;
+  });
+
+  // Retomar campanha
+  camp.status = "running";
+  saveCampaigns(campaigns);
+
+  console.log(`[queue] Campanha ${camp.id}: ${errorNumbers.length} números reenfileirados`);
+  res.json(camp);
 });
 
 // PATCH /campaigns/:id — pausa, retoma ou cancela
