@@ -105,7 +105,7 @@ function ConversasPage() {
 
   useEffect(() => {
     loadChats();
-    const interval = setInterval(() => loadChats(true), 4000);
+    const interval = setInterval(() => loadChats(true), 15000);
     return () => clearInterval(interval);
   }, [loadChats]);
 
