@@ -118,14 +118,36 @@ function ConversasPage() {
         list.push({ ...c, __instance: inst });
       }
     }
+    // Deduplicate by phone number — keep the entry with the most recent
+    // lastMessage across all chips. This prevents the same contact from
+    // appearing multiple times when multiple chips have chatted with them.
+    const byNumber = new Map<string, ChatWithInstance>();
+    for (const c of list) {
+      const phone = getSendableNumber(c as Parameters<typeof getSendableNumber>[0]);
+      const key = phone || c.remoteJid; // fallback to jid if no phone
+      const existing = byNumber.get(key);
+      if (!existing) {
+        byNumber.set(key, c);
+      } else {
+        const ts = (x: ChatWithInstance) =>
+          x.lastMessage?.messageTimestamp
+            ? Number(x.lastMessage.messageTimestamp)
+            : x.updatedAt
+              ? new Date(x.updatedAt).getTime() / 1000
+              : 0;
+        if (ts(c) > ts(existing)) byNumber.set(key, c);
+      }
+    }
+    const deduped = Array.from(byNumber.values());
+
     const q = search.trim().toLowerCase();
     const filtered = q
-      ? list.filter((c) => {
+      ? deduped.filter((c) => {
           const name = (c.pushName || "").toLowerCase();
           const num = jidToNumber(c.remoteJid);
           return name.includes(q) || num.includes(q);
         })
-      : list;
+      : deduped;
     return filtered.sort((a, b) => {
       const ta = a.lastMessage?.messageTimestamp
         ? Number(a.lastMessage.messageTimestamp)

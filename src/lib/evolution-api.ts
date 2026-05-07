@@ -150,11 +150,23 @@ export async function findMessages(instanceName: string, remoteJid: string, remo
   if (remoteJid) jids.add(remoteJid);
   if (remoteJidAlt) jids.add(remoteJidAlt);
 
-  // Also derive plain number variant
-  const num = (remoteJid || remoteJidAlt || "").replace(/@.*$/, "");
-  if (num) {
-    jids.add(`${num}@s.whatsapp.net`);
-    jids.add(`${num}@c.us`);
+  // Derive plain number variants, but NEVER from @lid JIDs — those are
+  // internal WhatsApp identifiers, not phone numbers. Deriving a phone JID
+  // from a lid number would match a completely different contact.
+  const isLid = remoteJid?.includes("@lid");
+  if (!isLid && remoteJid) {
+    const num = remoteJid.replace(/@.*$/, "");
+    if (num) {
+      jids.add(`${num}@s.whatsapp.net`);
+      jids.add(`${num}@c.us`);
+    }
+  }
+  if (remoteJidAlt) {
+    const num = remoteJidAlt.replace(/@.*$/, "");
+    if (num) {
+      jids.add(`${num}@s.whatsapp.net`);
+      jids.add(`${num}@c.us`);
+    }
   }
 
   const tryFetch = async (where: Record<string, unknown>) => {
