@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle } from "lucide-react";
+import { Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Instance, fetchInstances, isInstanceConnected } from "@/lib/evolution-api";
@@ -252,6 +253,18 @@ function ProducaoTab({
   campaigns: VPSCampaign[];
   setStatus: (id: string, s: BroadcastStatus) => void;
 }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [errorDialog, setErrorDialog] = useState<{ number: string; message: string } | null>(null);
+
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   if (campaigns.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
@@ -262,94 +275,196 @@ function ProducaoTab({
   }
 
   return (
-    <div className="space-y-4">
-      {campaigns.map((camp) => {
-        const total = camp.numbers.length;
-        const sent = camp.numbers.filter((n) => n.status === "sent").length;
-        const errors = camp.numbers.filter((n) => n.status === "error").length;
-        const pct = total ? ((sent + errors) / total) * 100 : 0;
+    <>
+      <div className="space-y-4">
+        {campaigns.map((camp) => {
+          const total = camp.numbers.length;
+          const sent = camp.numbers.filter((n) => n.status === "sent").length;
+          const errors = camp.numbers.filter((n) => n.status === "error").length;
+          const pending = camp.numbers.filter((n) => n.status === "pending").length;
+          const pct = total ? ((sent + errors) / total) * 100 : 0;
+          const isExpanded = expanded.has(camp.id);
 
-        return (
-          <div
-            key={camp.id}
-            className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4"
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                  Campanha
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      camp.status === "running"
-                        ? "bg-primary/20 text-primary"
-                        : camp.status === "completed"
-                          ? "bg-success/20 text-success"
-                          : camp.status === "paused"
-                            ? "bg-warning/20 text-warning"
-                            : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {camp.status.toUpperCase()}
-                  </span>
-                </h3>
-                <div className="text-xs text-muted-foreground mt-1 max-w-2xl truncate">
-                  {camp.message}
+          return (
+            <div
+              key={camp.id}
+              className="bg-card border border-border rounded-lg p-5 flex flex-col gap-4"
+            >
+              {/* Cabeçalho */}
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    Campanha
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        camp.status === "running"
+                          ? "bg-primary/20 text-primary"
+                          : camp.status === "completed"
+                            ? "bg-success/20 text-success"
+                            : camp.status === "paused"
+                              ? "bg-warning/20 text-warning"
+                              : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {camp.status.toUpperCase()}
+                    </span>
+                  </h3>
+                  <div className="text-xs text-muted-foreground mt-1 max-w-2xl truncate">
+                    {camp.message}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {camp.status === "running" && (
+                    <Button variant="secondary" size="sm" onClick={() => setStatus(camp.id, "paused")}>
+                      <Pause className="h-4 w-4 mr-1" /> Pausar
+                    </Button>
+                  )}
+                  {camp.status === "paused" && (
+                    <Button variant="outline" size="sm" onClick={() => setStatus(camp.id, "running")}>
+                      <Play className="h-4 w-4 mr-1" /> Retomar
+                    </Button>
+                  )}
+                  {(camp.status === "running" || camp.status === "paused") && (
+                    <Button variant="destructive" size="sm" onClick={() => setStatus(camp.id, "stopped")}>
+                      <Square className="h-4 w-4 mr-1" /> Cancelar
+                    </Button>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-2">
-                {camp.status === "running" && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setStatus(camp.id, "paused")}
-                  >
-                    <Pause className="h-4 w-4 mr-1" /> Pausar
-                  </Button>
-                )}
-                {camp.status === "paused" && (
-                  <Button variant="outline" size="sm" onClick={() => setStatus(camp.id, "running")}>
-                    <Play className="h-4 w-4 mr-1" /> Retomar
-                  </Button>
-                )}
-                {(camp.status === "running" || camp.status === "paused") && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setStatus(camp.id, "stopped")}
-                  >
-                    <Square className="h-4 w-4 mr-1" /> Cancelar
-                  </Button>
-                )}
-              </div>
-            </div>
 
+              {/* Progresso */}
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Progresso:</span>
+                    <strong>{sent + errors} / {total}</strong>
+                  </span>
+                  <span className="flex gap-3 text-xs font-medium">
+                    <span className="flex items-center text-success">
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> {sent} enviados
+                    </span>
+                    <span className="flex items-center text-destructive">
+                      <AlertCircle className="h-3 w-3 mr-1" /> {errors} erros
+                    </span>
+                    <span className="flex items-center text-muted-foreground">
+                      <Clock className="h-3 w-3 mr-1" /> {pending} pendentes
+                    </span>
+                  </span>
+                </div>
+                <Progress value={pct} className="h-2" />
+              </div>
+
+              {/* Info + botão expandir */}
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  Chips: {camp.chips?.join(", ") || "Nenhum"} | Intervalo: {camp.min_sec}s – {camp.max_sec}s
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => toggleExpand(camp.id)}
+                >
+                  {isExpanded ? (
+                    <><ChevronUp className="h-4 w-4 mr-1" /> Ocultar números</>
+                  ) : (
+                    <><ChevronDown className="h-4 w-4 mr-1" /> Ver números ({total})</>
+                  )}
+                </Button>
+              </div>
+
+              {/* Lista expandida de números */}
+              {isExpanded && (
+                <div className="border border-border rounded-md overflow-hidden">
+                  <div className="max-h-80 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted sticky top-0">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">#</th>
+                          <th className="text-left px-3 py-2 font-medium">Número</th>
+                          <th className="text-left px-3 py-2 font-medium">Status</th>
+                          <th className="text-left px-3 py-2 font-medium">Chip usado</th>
+                          <th className="text-left px-3 py-2 font-medium"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {camp.numbers.map((n, idx) => (
+                          <tr key={idx} className="border-t border-border hover:bg-accent/30">
+                            <td className="px-3 py-2 text-muted-foreground">{idx + 1}</td>
+                            <td className="px-3 py-2 font-mono">+{n.number}</td>
+                            <td className="px-3 py-2">
+                              {n.status === "sent" && (
+                                <span className="flex items-center gap-1 text-success font-medium">
+                                  <CheckCircle2 className="h-3 w-3" /> Enviado
+                                </span>
+                              )}
+                              {n.status === "error" && (
+                                <span className="flex items-center gap-1 text-destructive font-medium">
+                                  <AlertCircle className="h-3 w-3" /> Erro
+                                </span>
+                              )}
+                              {n.status === "pending" && (
+                                <span className="flex items-center gap-1 text-muted-foreground">
+                                  <Clock className="h-3 w-3" /> Pendente
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {n.instance || "—"}
+                            </td>
+                            <td className="px-3 py-2">
+                              {n.status === "error" && n.error_message && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 text-xs text-destructive hover:text-destructive"
+                                  onClick={() =>
+                                    setErrorDialog({
+                                      number: n.number,
+                                      message: n.error_message!,
+                                    })
+                                  }
+                                >
+                                  Ver erro
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Pop-up de erro */}
+      <Dialog open={!!errorDialog} onOpenChange={() => setErrorDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-5 w-5" /> Erro no envio
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
             <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="flex items-center gap-2">
-                  <span className="text-muted-foreground">Progresso:</span>
-                  <strong>
-                    {sent + errors} / {total}
-                  </strong>
-                </span>
-                <span className="flex gap-3 text-xs font-medium">
-                  <span className="flex items-center text-success">
-                    <CheckCircle2 className="h-3 w-3 mr-1" /> {sent}
-                  </span>
-                  <span className="flex items-center text-destructive">
-                    <AlertCircle className="h-3 w-3 mr-1" /> {errors}
-                  </span>
-                </span>
-              </div>
-              <Progress value={pct} className="h-2" />
+              <p className="text-xs text-muted-foreground mb-1">Número</p>
+              <p className="font-mono text-sm">+{errorDialog?.number}</p>
             </div>
-
-            <div className="text-xs text-muted-foreground">
-              Chips: {camp.chips?.join(", ") || "Nenhum"} | Intervalo: {camp.min_sec}s –{" "}
-              {camp.max_sec}s
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Mensagem de erro</p>
+              <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+                <p className="text-sm text-destructive font-mono break-all">
+                  {errorDialog?.message}
+                </p>
+              </div>
             </div>
           </div>
-        );
-      })}
-    </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
