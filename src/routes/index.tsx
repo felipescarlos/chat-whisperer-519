@@ -146,9 +146,14 @@ function ConversasPage() {
     if (!selected) return;
     if (!isBackground) setLoadingMsgs(true);
     try {
-      const msgs = await findMessages(selected.__instance, selected.remoteJid, (selected as any).remoteJidAlt);
+      const msgs = await findMessages(
+        selected.__instance,
+        selected.remoteJid,
+        (selected as any).remoteJidAlt,
+        isBackground ? 20 : 500,
+      );
       const sorted = [...msgs].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
-      
+
       // Deduplicate by ID
       const unique: Message[] = [];
       const ids = new Set();
@@ -159,10 +164,10 @@ function ConversasPage() {
         }
       }
 
-      setMessages(prev => {
-        if (JSON.stringify(prev) === JSON.stringify(unique)) return prev;
-        return unique;
-      });
+      const latestId = unique[unique.length - 1]?.key?.id ?? null;
+      if (isBackground && latestId === lastMessageIdRef.current) return;
+      lastMessageIdRef.current = latestId;
+      setMessages(unique);
     } catch (e) {
       if (!isBackground) {
         console.error(e);
@@ -175,8 +180,9 @@ function ConversasPage() {
 
   useEffect(() => {
     setMessages([]);
+    lastMessageIdRef.current = null;
     loadMessages();
-    const interval = setInterval(() => loadMessages(true), 2500);
+    const interval = setInterval(() => loadMessages(true), 5000);
     return () => clearInterval(interval);
   }, [loadMessages, selected]);
 
