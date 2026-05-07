@@ -1,12 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Save, Webhook, Loader2, Info } from "lucide-react";
+import { Save, Webhook, Loader2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { fetchInstances, isInstanceConnected, setWebhook } from "@/lib/evolution-api";
+import {
+  fetchInstances,
+  isInstanceConnected,
+  setWebhook,
+  getWebhook,
+} from "@/lib/evolution-api";
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
@@ -18,16 +23,46 @@ export const Route = createFileRoute("/configuracoes")({
   component: ConfiguracoesPage,
 });
 
-const DEFAULT_WEBHOOK_URL = "https://hook.us2.make.com/mx1uatc7jvo4geabkp1k9i9he2wrd8na";
-
 function ConfiguracoesPage() {
-  const [webhookUrl, setWebhookUrl] = useState(DEFAULT_WEBHOOK_URL);
+  const [webhookUrl, setWebhookUrl] = useState("");
   const [isApplying, setIsApplying] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load the saved URL from localStorage; fallback to default constant
+  // Busca o webhook atual configurado no VPS
+  const loadCurrentWebhook = async () => {
+    setIsLoading(true);
+    try {
+      const instances = await fetchInstances();
+      const connected = instances.filter(isInstanceConnected);
+
+      if (connected.length > 0) {
+        const config = await getWebhook(connected[0].name);
+        if (config?.url) {
+          setWebhookUrl(config.url);
+          return;
+        }
+      }
+
+      // Fallback: tenta qualquer instância
+      for (const instance of instances) {
+        const config = await getWebhook(instance.name);
+        if (config?.url) {
+          setWebhookUrl(config.url);
+          return;
+        }
+      }
+
+      setWebhookUrl("");
+    } catch (err) {
+      console.error("Erro ao buscar webhook:", err);
+      toast.error("Não foi possível carregar o webhook atual.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const saved = localStorage.getItem("global-webhook-url");
-    setWebhookUrl(saved && saved.trim() ? saved : DEFAULT_WEBHOOK_URL);
+    loadCurrentWebhook();
   }, []);
 
   const handleApplyWebhooks = async () => {
@@ -37,8 +72,6 @@ function ConfiguracoesPage() {
 
     setIsApplying(true);
     try {
-      localStorage.setItem("global-webhook-url", webhookUrl.trim());
-
       const instances = await fetchInstances();
       const connectedInstances = instances.filter(isInstanceConnected);
 
@@ -92,36 +125,41 @@ function ConfiguracoesPage() {
             <div>
               <h2 className="text-lg font-semibold mb-1">Webhook Global (Mensagens Recebidas)</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Ao configurar uma URL, todas as mensagens que chegarem em qualquer chip conectado
-                serão enviadas imediatamente via POST para essa URL. Ideal para integrar com o Make.com ou n8n.
+                URL configurada no servidor para receber todas as mensagens que chegarem nos chips conectados.
+                O valor atual é carregado diretamente do VPS.
               </p>
             </div>
 
             <div className="space-y-3">
-              <Label htmlFor="webhook-url">URL do Webhook (Ex: Make.com)</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="webhook-url">URL do Webhook atual</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadCurrentWebhook}
+                  disabled={isLoading}
+                  className="text-xs text-muted-foreground"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                  )}
+                  Recarregar do servidor
+                </Button>
+              </div>
               <Input
                 id="webhook-url"
-                placeholder="https://hook.us2.make.com/..."
+                placeholder={isLoading ? "Carregando..." : "Nenhum webhook configurado"}
                 value={webhookUrl}
                 onChange={(e) => setWebhookUrl(e.target.value)}
                 className="font-mono text-sm"
+                disabled={isLoading}
               />
             </div>
 
-            <div className="bg-accent/50 p-4 rounded-md flex gap-3 text-sm">
-              <Info className="h-5 w-5 text-primary shrink-0" />
-              <div className="space-y-1">
-                <p><strong>Dica para Mapeamento no Make.com:</strong> A Evolution API envia um formato próprio. No Make, busque por:</p>
-                <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
-                  <li><strong>Número do rementente:</strong> <code className="bg-background px-1 py-0.5 rounded text-xs">data.key.remoteJid</code></li>
-                  <li><strong>Número que recebeu (Chip):</strong> <code className="bg-background px-1 py-0.5 rounded text-xs">instance</code></li>
-                  <li><strong>Texto da mensagem:</strong> <code className="bg-background px-1 py-0.5 rounded text-xs">data.message.conversation</code> ou <code className="bg-background px-1 py-0.5 rounded text-xs">extendedTextMessage.text</code></li>
-                </ul>
-              </div>
-            </div>
-
             <div className="flex justify-end pt-2 border-t border-border">
-              <Button onClick={handleApplyWebhooks} disabled={isApplying}>
+              <Button onClick={handleApplyWebhooks} disabled={isApplying || isLoading}>
                 {isApplying ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
