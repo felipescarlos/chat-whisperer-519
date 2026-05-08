@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { AlertCircle, RefreshCw } from "lucide-react";
-import { createVPSCampaign, VPSCampaign } from "@/lib/vps-queue";
+import { RefreshCw, AlertTriangle } from "lucide-react";
+import { createVPSCampaign, VPSCampaign, translateEvolutionError } from "@/lib/vps-queue";
 
 interface Props {
   campaign: VPSCampaign;
@@ -24,7 +24,6 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
   const [maxSec, setMaxSec] = useState(campaign.max_sec);
   const [loading, setLoading] = useState(false);
 
-  // Reinicia estado toda vez que abrir com uma campanha diferente
   useEffect(() => {
     if (open) {
       setSelected(new Set(errorNumbers.map((n) => n.number)));
@@ -83,7 +82,7 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg flex flex-col" style={{ maxHeight: "85vh" }}>
+      <DialogContent className="flex flex-col" style={{ maxWidth: "780px", maxHeight: "85vh" }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-warning">
             <RefreshCw className="h-5 w-5" />
@@ -92,7 +91,7 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-5 py-1" style={{ minHeight: 0 }}>
-          {/* Lista de números com erro */}
+          {/* Tabela de números com erro */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <Label>
@@ -104,29 +103,83 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
               </Button>
             </div>
 
-            <div className="border border-border rounded-md divide-y divide-border overflow-hidden max-h-56 overflow-y-auto">
-              {errorNumbers.map((n, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center gap-3 px-3 py-2 transition-opacity ${
-                    !selected.has(n.number) ? "opacity-40" : ""
-                  }`}
-                >
-                  <Checkbox
-                    checked={selected.has(n.number)}
-                    onCheckedChange={() => toggle(n.number)}
-                  />
-                  <Input
-                    value={edited[n.number] ?? n.number}
-                    onChange={(e) =>
-                      setEdited((prev) => ({ ...prev, [n.number]: e.target.value }))
-                    }
-                    className="h-7 font-mono text-xs flex-1 border-0 bg-transparent focus-visible:ring-0 px-0"
-                    placeholder={n.number}
-                  />
-                  <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
-                </div>
-              ))}
+            <div className="border border-border rounded-md overflow-hidden">
+              {/* Cabeçalho */}
+              <div className="grid grid-cols-[28px_1fr_140px_1fr] gap-0 bg-muted/50 border-b border-border px-3 py-1.5">
+                <span />
+                <span className="text-xs font-medium text-muted-foreground">Número</span>
+                <span className="text-xs font-medium text-muted-foreground">Chip</span>
+                <span className="text-xs font-medium text-muted-foreground">Erro</span>
+              </div>
+
+              {/* Linhas */}
+              <div className="divide-y divide-border max-h-72 overflow-y-auto">
+                {errorNumbers.map((n, i) => {
+                  const translated = n.error_message
+                    ? translateEvolutionError(n.error_message)
+                    : null;
+                  const isSelected = selected.has(n.number);
+
+                  return (
+                    <div
+                      key={i}
+                      className={`grid grid-cols-[28px_1fr_140px_1fr] gap-0 items-start px-3 py-2 transition-opacity ${
+                        !isSelected ? "opacity-40" : ""
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <div className="pt-0.5">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggle(n.number)}
+                        />
+                      </div>
+
+                      {/* Número editável */}
+                      <div className="pr-3">
+                        <Input
+                          value={edited[n.number] ?? n.number}
+                          onChange={(e) =>
+                            setEdited((prev) => ({ ...prev, [n.number]: e.target.value }))
+                          }
+                          className="h-7 font-mono text-xs border-0 bg-transparent focus-visible:ring-1 focus-visible:ring-border px-0"
+                          placeholder={n.number}
+                        />
+                      </div>
+
+                      {/* Chip usado */}
+                      <div className="pr-3 pt-1">
+                        {n.instance ? (
+                          <span className="text-xs text-muted-foreground truncate block">
+                            {n.instance}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40">—</span>
+                        )}
+                      </div>
+
+                      {/* Erro traduzido */}
+                      <div className="pt-0.5">
+                        {translated ? (
+                          <div className="flex items-start gap-1.5">
+                            <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-medium text-destructive leading-tight">
+                                {translated.title}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+                                {translated.explanation}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40">—</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <p className="text-xs text-muted-foreground mt-1">
