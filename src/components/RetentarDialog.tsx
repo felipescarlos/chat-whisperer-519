@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { RefreshCw, AlertTriangle } from "lucide-react";
+import { RefreshCw, AlertTriangle, Shuffle } from "lucide-react";
 import { createVPSCampaign, VPSCampaign, translateEvolutionError } from "@/lib/vps-queue";
 
 interface Props {
@@ -20,26 +20,33 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [edited, setEdited] = useState<Record<string, string>>({});
+  const [selectedChips, setSelectedChips] = useState<Set<string>>(new Set(campaign.chips));
   const [minSec, setMinSec] = useState(campaign.min_sec);
   const [maxSec, setMaxSec] = useState(campaign.max_sec);
+  const [perChipLimit, setPerChipLimit] = useState(campaign.per_chip_limit);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
       setSelected(new Set(errorNumbers.map((n) => n.number)));
       setEdited({});
+      setSelectedChips(new Set(campaign.chips));
       setMinSec(campaign.min_sec);
       setMaxSec(campaign.max_sec);
+      setPerChipLimit(campaign.per_chip_limit);
     }
   }, [open, campaign.id]);
 
-  const allSelected = selected.size === errorNumbers.length;
+  const allNumbersSelected = selected.size === errorNumbers.length;
+  const allChipsSelected = selectedChips.size === campaign.chips.length;
 
-  const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(errorNumbers.map((n) => n.number)));
+  const toggleAllNumbers = () => {
+    setSelected(
+      allNumbersSelected ? new Set() : new Set(errorNumbers.map((n) => n.number))
+    );
   };
 
-  const toggle = (number: string) => {
+  const toggleNumber = (number: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(number)) next.delete(number);
@@ -48,8 +55,19 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
     });
   };
 
+  const toggleChip = (chip: string) => {
+    setSelectedChips((prev) => {
+      if (prev.has(chip) && prev.size === 1) return prev; // manter pelo menos 1
+      const next = new Set(prev);
+      if (next.has(chip)) next.delete(chip);
+      else next.add(chip);
+      return next;
+    });
+  };
+
   const handleSubmit = async () => {
     if (selected.size === 0) return toast.error("Selecione ao menos 1 número");
+    if (selectedChips.size === 0) return toast.error("Selecione ao menos 1 chip");
     if (minSec > maxSec) return toast.error("Intervalo mínimo não pode ser maior que o máximo");
 
     setLoading(true);
@@ -65,12 +83,14 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
         message: campaign.message,
         min_sec: minSec,
         max_sec: maxSec,
-        per_chip_limit: campaign.per_chip_limit,
-        chips: campaign.chips,
+        per_chip_limit: perChipLimit,
+        chips: Array.from(selectedChips),
         numbers,
       });
 
-      toast.success(`Subcampanha criada com ${numbers.length} número${numbers.length !== 1 ? "s" : ""}!`);
+      toast.success(
+        `Subcampanha criada com ${numbers.length} número${numbers.length !== 1 ? "s" : ""}!`
+      );
       onSuccess();
       onClose();
     } catch (err) {
@@ -82,7 +102,10 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="flex flex-col" style={{ maxWidth: "780px", maxHeight: "85vh" }}>
+      <DialogContent
+        className="flex flex-col"
+        style={{ maxWidth: "1020px", width: "95vw", maxHeight: "92vh" }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-warning">
             <RefreshCw className="h-5 w-5" />
@@ -90,30 +113,43 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-5 py-1" style={{ minHeight: 0 }}>
-          {/* Tabela de números com erro */}
+        <div className="flex-1 overflow-y-auto space-y-6 py-1" style={{ minHeight: 0 }}>
+          {/* ── Tabela de números ── */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <Label>
                 Números com erro{" "}
-                <span className="text-muted-foreground font-normal">({errorNumbers.length})</span>
+                <span className="text-muted-foreground font-normal">
+                  ({errorNumbers.length})
+                </span>
               </Label>
-              <Button variant="ghost" size="sm" className="text-xs h-7" onClick={toggleAll}>
-                {allSelected ? "Desmarcar todos" : "Selecionar todos"}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7"
+                onClick={toggleAllNumbers}
+              >
+                {allNumbersSelected ? "Desmarcar todos" : "Selecionar todos"}
               </Button>
             </div>
 
             <div className="border border-border rounded-md overflow-hidden">
               {/* Cabeçalho */}
-              <div className="grid grid-cols-[28px_1fr_140px_1fr] gap-0 bg-muted/50 border-b border-border px-3 py-1.5">
+              <div
+                className="grid bg-muted/50 border-b border-border px-3 py-1.5"
+                style={{ gridTemplateColumns: "32px 180px 160px 1fr" }}
+              >
                 <span />
                 <span className="text-xs font-medium text-muted-foreground">Número</span>
-                <span className="text-xs font-medium text-muted-foreground">Chip</span>
-                <span className="text-xs font-medium text-muted-foreground">Erro</span>
+                <span className="text-xs font-medium text-muted-foreground">Chip utilizado</span>
+                <span className="text-xs font-medium text-muted-foreground">Motivo do erro</span>
               </div>
 
               {/* Linhas */}
-              <div className="divide-y divide-border max-h-72 overflow-y-auto">
+              <div
+                className="divide-y divide-border overflow-y-auto"
+                style={{ maxHeight: "340px" }}
+              >
                 {errorNumbers.map((n, i) => {
                   const translated = n.error_message
                     ? translateEvolutionError(n.error_message)
@@ -123,20 +159,21 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
                   return (
                     <div
                       key={i}
-                      className={`grid grid-cols-[28px_1fr_140px_1fr] gap-0 items-start px-3 py-2 transition-opacity ${
-                        !isSelected ? "opacity-40" : ""
+                      className={`grid items-start px-3 py-2.5 transition-opacity ${
+                        !isSelected ? "opacity-35" : ""
                       }`}
+                      style={{ gridTemplateColumns: "32px 180px 160px 1fr" }}
                     >
                       {/* Checkbox */}
                       <div className="pt-0.5">
                         <Checkbox
                           checked={isSelected}
-                          onCheckedChange={() => toggle(n.number)}
+                          onCheckedChange={() => toggleNumber(n.number)}
                         />
                       </div>
 
                       {/* Número editável */}
-                      <div className="pr-3">
+                      <div className="pr-4">
                         <Input
                           value={edited[n.number] ?? n.number}
                           onChange={(e) =>
@@ -147,8 +184,8 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
                         />
                       </div>
 
-                      {/* Chip usado */}
-                      <div className="pr-3 pt-1">
+                      {/* Chip */}
+                      <div className="pr-4 pt-1">
                         {n.instance ? (
                           <span className="text-xs text-muted-foreground truncate block">
                             {n.instance}
@@ -167,7 +204,7 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
                               <p className="text-xs font-medium text-destructive leading-tight">
                                 {translated.title}
                               </p>
-                              <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+                              <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
                                 {translated.explanation}
                               </p>
                             </div>
@@ -183,17 +220,62 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
             </div>
 
             <p className="text-xs text-muted-foreground mt-1">
-              {selected.size} de {errorNumbers.length} selecionados · Edite os números diretamente
-              para corrigir formato
+              {selected.size} de {errorNumbers.length} selecionados · Edite os números
+              diretamente para corrigir formato
             </p>
           </div>
 
-          {/* Configuração de intervalo */}
+          {/* ── Chips para reenvio ── */}
           <div>
-            <Label className="mb-3 block">Intervalo entre envios</Label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center justify-between mb-2">
+              <Label>Chips para reenvio</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 gap-1.5"
+                onClick={() => setSelectedChips(new Set(campaign.chips))}
+                disabled={allChipsSelected}
+              >
+                <Shuffle className="h-3 w-3" />
+                Todos (aleatório)
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 p-3 border border-border rounded-md bg-muted/20">
+              {campaign.chips.map((chip) => {
+                const active = selectedChips.has(chip);
+                return (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => toggleChip(chip)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      active
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-transparent text-muted-foreground border-border hover:border-primary/60 hover:text-foreground"
+                    }`}
+                  >
+                    {chip}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="text-xs text-muted-foreground mt-1">
+              {allChipsSelected
+                ? "Chip escolhido aleatoriamente a cada envio"
+                : `${selectedChips.size} de ${campaign.chips.length} chip${campaign.chips.length !== 1 ? "s" : ""} selecionado${selectedChips.size !== 1 ? "s" : ""} — envios distribuídos entre eles`}
+            </p>
+          </div>
+
+          {/* ── Configurações de envio ── */}
+          <div>
+            <Label className="mb-3 block">Configurações de envio</Label>
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">Mínimo (s)</Label>
+                <Label className="text-xs text-muted-foreground mb-1 block">
+                  Intervalo mínimo (s)
+                </Label>
                 <Input
                   type="number"
                   min={1}
@@ -202,7 +284,9 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">Máximo (s)</Label>
+                <Label className="text-xs text-muted-foreground mb-1 block">
+                  Intervalo máximo (s)
+                </Label>
                 <Input
                   type="number"
                   min={1}
@@ -210,10 +294,22 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
                   onChange={(e) => setMaxSec(Number(e.target.value) || 1)}
                 />
               </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">
+                  Limite por chip
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={perChipLimit}
+                  onChange={(e) => setPerChipLimit(Number(e.target.value) || 1)}
+                />
+              </div>
             </div>
           </div>
         </div>
 
+        {/* ── Rodapé ── */}
         <div className="pt-4 border-t border-border">
           <Button
             onClick={handleSubmit}
@@ -223,7 +319,11 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             {loading
               ? "Criando subcampanha..."
-              : `Retentar ${selected.size} número${selected.size !== 1 ? "s" : ""}`}
+              : `Retentar ${selected.size} número${selected.size !== 1 ? "s" : ""} via ${
+                  allChipsSelected
+                    ? "chip aleatório"
+                    : `${selectedChips.size} chip${selectedChips.size !== 1 ? "s" : ""} selecionado${selectedChips.size !== 1 ? "s" : ""}`
+                }`}
           </Button>
         </div>
       </DialogContent>
