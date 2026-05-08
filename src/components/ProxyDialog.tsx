@@ -35,14 +35,17 @@ async function interpretProxyText(text: string): Promise<Partial<ProxyConfig>> {
     `Retorne apenas o JSON, sem explicação. Texto: ${text}`;
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     },
   );
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${res.statusText}`);
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    throw new Error(`Gemini ${res.status}: ${errBody || res.statusText}`);
+  }
   const data = await res.json();
   const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   const match = raw.match(/\{[\s\S]*\}/);
