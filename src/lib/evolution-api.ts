@@ -370,3 +370,25 @@ export function getWebhook(instanceName: string) {
   return request<WebhookConfig | null>(`/webhook/find/${encodeURIComponent(instanceName)}`)
     .catch(() => null);
 }
+
+// Proxy
+export interface ProxyConfig {
+  enabled: boolean;
+  host?: string;
+  port?: string | number;
+  protocol?: string;
+  username?: string | null;
+  password?: string | null;
+}
+
+export function getProxy(instanceName: string) {
+  return request<ProxyConfig | null>(`/proxy/find/${encodeURIComponent(instanceName)}`)
+    .catch(() => null);
+}
+
+export function setProxy(instanceName: string, config: ProxyConfig) {
+  return request<unknown>(`/proxy/set/${encodeURIComponent(instanceName)}`, {
+    method: "POST",
+    body: JSON.stringify(config),
+  });
+}

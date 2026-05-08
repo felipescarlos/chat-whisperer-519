@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Trash2, RefreshCw, Smartphone, Pencil, Webhook } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Smartphone, Pencil, Webhook, Shield, ShieldCheck } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,10 @@ import {
   isInstanceConnected,
   getWebhook,
   setWebhook,
+  getProxy,
 } from "@/lib/evolution-api";
 import { getChipDisplayName, setChipLabel, loadAllLabels } from "@/lib/chip-labels";
+import { ProxyDialog } from "@/components/ProxyDialog";
 
 export const Route = createFileRoute("/chips")({
   head: () => ({
@@ -56,6 +58,9 @@ function ChipsPage() {
   const [labelInstance, setLabelInstance] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const [webhooks, setWebhooks] = useState<Record<string, boolean>>({});
+  const [proxies, setProxies] = useState<Record<string, boolean>>({});
+  const [proxyOpen, setProxyOpen] = useState(false);
+  const [proxyInstance, setProxyInstance] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -69,15 +74,21 @@ function ChipsPage() {
       setInstances(list);
       
       const hooks: Record<string, boolean> = {};
+      const prxs: Record<string, boolean> = {};
       await Promise.all(
         list.map(async (i) => {
           if (isInstanceConnected(i)) {
-            const h = await getWebhook(i.name);
+            const [h, p] = await Promise.all([
+              getWebhook(i.name),
+              getProxy(i.name),
+            ]);
             hooks[i.name] = h?.enabled || false;
+            prxs[i.name] = p?.enabled || false;
           }
         })
       );
       setWebhooks(hooks);
+      setProxies(prxs);
     } catch (e) {
       console.error(e);
       toast.error("Falha ao carregar chips");
@@ -290,6 +301,23 @@ function ChipsPage() {
                               <Webhook className="h-3 w-3" />
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-6 w-6 transition-colors ${
+                              proxies[i.name]
+                                ? "text-emerald-400 hover:text-emerald-300"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                            onClick={() => { setProxyInstance(i.name); setProxyOpen(true); }}
+                            title={proxies[i.name] ? "Proxy ativo — clique para configurar" : "Configurar proxy"}
+                          >
+                            {proxies[i.name] ? (
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                            ) : (
+                              <Shield className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {i.ownerJid ? i.ownerJid.replace(/@.*$/, "") : i.number || "—"}
@@ -466,6 +494,20 @@ function ChipsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Proxy modal */}
+      {proxyInstance && (
+        <ProxyDialog
+          instanceName={proxyInstance}
+          open={proxyOpen}
+          onClose={() => { setProxyOpen(false); setProxyInstance(null); }}
+          onSaved={() => {
+            // Re-fetch proxy status for this chip
+            getProxy(proxyInstance).then((p) => {
+              setProxies((prev) => ({ ...prev, [proxyInstance]: p?.enabled || false }));
+            });
+          }}
+        />
+      )}
     </AppShell>
   );
 }
