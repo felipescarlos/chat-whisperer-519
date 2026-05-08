@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { MessageCircle, Smartphone, Send, History, Settings, LogOut, Bot } from "lucide-react";
+import { MessageCircle, Smartphone, Send, History, Settings, LogOut, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth";
 
@@ -8,7 +8,7 @@ const items = [
   { to: "/chips", label: "Chips", icon: Smartphone },
   { to: "/disparos", label: "Disparos", icon: Send },
   { to: "/historico", label: "Histórico", icon: History },
-  { to: "/agente", label: "Agente", icon: Bot },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/configuracoes", label: "Config", icon: Settings },
 ] as const;
 
@@ -20,7 +20,7 @@ export function AppSidebar() {
       <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center mb-4 shrink-0">
         <MessageCircle className="h-5 w-5 text-primary-foreground" />
       </div>
-      
+
       <div className="flex-1 flex flex-col items-center gap-2 w-full overflow-y-auto">
         {items.map((item) => {
           const Icon = item.icon;
