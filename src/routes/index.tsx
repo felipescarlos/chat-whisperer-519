@@ -109,33 +109,72 @@ function ConversasPage() {
     return () => clearInterval(interval);
   }, [loadChats]);
 
+  // Build a map: phone number → @lid JID, so we can include @lid variants
+  // when loading messages for @s.whatsapp.net contacts (Evolution sometimes
+  // stores messages under @lid even for contacts shown as @s.whatsapp.net).
+  const phoneToLid = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const chats of Object.values(chatsByInstance)) {
+      for (const c of chats) {
+        if (!c.remoteJid.includes("@lid")) continue;
+        const alt = (c as any).remoteJidAlt as string | undefined | null;
+        if (alt) {
+          const phone = alt.replace(/@.*$/, "");
+          if (phone) map.set(phone, c.remoteJid);
+        }
+      }
+    }
+    return map;
+  }, [chatsByInstance]);
+
   const allChats = useMemo<ChatWithInstance[]>(() => {
     const list: ChatWithInstance[] = [];
     for (const [inst, chats] of Object.entries(chatsByInstance)) {
       if (filterInstance !== "all" && filterInstance !== inst) continue;
       for (const c of chats) {
-        if (!c.remoteJid || c.remoteJid.includes("@g.us")) continue;
+        if (!c.remoteJid) continue;
+        // Groups
+        if (c.remoteJid.includes("@g.us")) continue;
+        // Broadcast lists, status updates, newsletters
+        if (
+          c.remoteJid.includes("@broadcast") ||
+          c.remoteJid.includes("@newsletter") ||
+          c.remoteJid.startsWith("status@")
+        ) continue;
+        // @lid entries without remoteJidAlt cannot be mapped to a real phone
+        // number — they are almost always duplicates of a @s.whatsapp.net entry.
+        // Evolution's own manager skips them; we do the same.
+        if (c.remoteJid.includes("@lid") && !((c as any).remoteJidAlt)) continue;
         list.push({ ...c, __instance: inst });
       }
     }
+
     // Deduplicate by phone number — keep the entry with the most recent
-    // lastMessage across all chips. This prevents the same contact from
-    // appearing multiple times when multiple chips have chatted with them.
+    // lastMessage. Prefer @s.whatsapp.net over @lid when timestamps are equal.
+    const chatTs = (x: ChatWithInstance) =>
+      x.lastMessage?.messageTimestamp
+        ? Number(x.lastMessage.messageTimestamp)
+        : x.updatedAt
+          ? new Date(x.updatedAt).getTime() / 1000
+          : 0;
+
     const byNumber = new Map<string, ChatWithInstance>();
     for (const c of list) {
       const phone = getSendableNumber(c as Parameters<typeof getSendableNumber>[0]);
-      const key = phone || c.remoteJid; // fallback to jid if no phone
+      const key = phone || c.remoteJid;
       const existing = byNumber.get(key);
       if (!existing) {
         byNumber.set(key, c);
       } else {
-        const ts = (x: ChatWithInstance) =>
-          x.lastMessage?.messageTimestamp
-            ? Number(x.lastMessage.messageTimestamp)
-            : x.updatedAt
-              ? new Date(x.updatedAt).getTime() / 1000
-              : 0;
-        if (ts(c) > ts(existing)) byNumber.set(key, c);
+        const newer = chatTs(c) > chatTs(existing);
+        // Prefer @s.whatsapp.net over @lid on tie
+        const preferThis =
+          newer ||
+          (!newer &&
+            chatTs(c) === chatTs(existing) &&
+            !c.remoteJid.includes("@lid") &&
+            existing.remoteJid.includes("@lid"));
+        if (preferThis) byNumber.set(key, c);
       }
     }
     const deduped = Array.from(byNumber.values());
@@ -148,19 +187,7 @@ function ConversasPage() {
           return name.includes(q) || num.includes(q);
         })
       : deduped;
-    return filtered.sort((a, b) => {
-      const ta = a.lastMessage?.messageTimestamp
-        ? Number(a.lastMessage.messageTimestamp)
-        : a.updatedAt
-          ? new Date(a.updatedAt).getTime() / 1000
-          : 0;
-      const tb = b.lastMessage?.messageTimestamp
-        ? Number(b.lastMessage.messageTimestamp)
-        : b.updatedAt
-          ? new Date(b.updatedAt).getTime() / 1000
-          : 0;
-      return tb - ta;
-    });
+    return filtered.sort((a, b) => chatTs(b as ChatWithInstance) - chatTs(a as ChatWithInstance));
   }, [chatsByInstance, filterInstance, search]);
 
   // Load messages when select
@@ -168,10 +195,16 @@ function ConversasPage() {
     if (!selected) return;
     if (!isBackground) setLoadingMsgs(true);
     try {
+      // If the selected chat is a regular phone JID, also include any @lid
+      // variant we know about — Evolution may have stored some messages under @lid.
+      const explicitAlt = (selected as any).remoteJidAlt as string | null | undefined;
+      const phoneNum = getSendableNumber(selected as Parameters<typeof getSendableNumber>[0]);
+      const lidJid = explicitAlt ? null : (phoneToLid.get(phoneNum) ?? null);
+
       const msgs = await findMessages(
         selected.__instance,
         selected.remoteJid,
-        (selected as any).remoteJidAlt,
+        explicitAlt || lidJid,
         isBackground ? 20 : 500,
       );
       const sorted = [...msgs].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
@@ -198,7 +231,7 @@ function ConversasPage() {
     } finally {
       if (!isBackground) setLoadingMsgs(false);
     }
-  }, [selected]);
+  }, [selected, phoneToLid]);
 
   useEffect(() => {
     setMessages([]);
