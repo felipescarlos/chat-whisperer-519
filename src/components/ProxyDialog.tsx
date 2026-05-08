@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { ShieldCheck, Sparkles, Loader2, Trash2, Save } from "lucide-react";
 import { getProxy, setProxy, type ProxyConfig } from "@/lib/evolution-api";
 
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+const GEMINI_KEY = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || "AIzaSyCQ4undiqK0978s3glHfgtZGmmVNW0Flg0";
 
 async function interpretProxyText(text: string): Promise<Partial<ProxyConfig>> {
   if (!GEMINI_KEY) throw new Error("VITE_GEMINI_API_KEY não configurada");
