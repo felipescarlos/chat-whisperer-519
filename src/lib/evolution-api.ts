@@ -150,24 +150,27 @@ export async function findMessages(instanceName: string, remoteJid: string, remo
   if (remoteJid) jids.add(remoteJid);
   if (remoteJidAlt) jids.add(remoteJidAlt);
 
-  // Derive plain number variants, but NEVER from @lid JIDs — those are
-  // internal WhatsApp identifiers, not phone numbers. Deriving a phone JID
-  // from a lid number would match a completely different contact.
-  const isLid = remoteJid?.includes("@lid");
-  if (!isLid && remoteJid) {
-    const num = remoteJid.replace(/@.*$/, "");
+  // Derive @s.whatsapp.net / @c.us variants ONLY from real phone JIDs.
+  // @lid JIDs are internal WhatsApp identifiers — extracting the numeric part
+  // and treating it as a phone number matches completely unrelated contacts.
+  // This rule applies to BOTH remoteJid AND remoteJidAlt.
+  const addPhoneVariants = (jid: string) => {
+    if (!jid) return;
+    if (
+      jid.includes("@lid") ||
+      jid.includes("@g.us") ||
+      jid.includes("@broadcast") ||
+      jid.includes("@newsletter")
+    ) return; // never derive phone variants from these
+    const num = jid.replace(/@.*$/, "");
     if (num) {
       jids.add(`${num}@s.whatsapp.net`);
       jids.add(`${num}@c.us`);
     }
-  }
-  if (remoteJidAlt) {
-    const num = remoteJidAlt.replace(/@.*$/, "");
-    if (num) {
-      jids.add(`${num}@s.whatsapp.net`);
-      jids.add(`${num}@c.us`);
-    }
-  }
+  };
+
+  addPhoneVariants(remoteJid);
+  if (remoteJidAlt) addPhoneVariants(remoteJidAlt);
 
   const tryFetch = async (where: Record<string, unknown>) => {
     try {
