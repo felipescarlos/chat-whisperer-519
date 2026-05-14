@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { RefreshCw, AlertTriangle, Shuffle } from "lucide-react";
+import { RefreshCw, AlertTriangle, Shuffle, Loader2 } from "lucide-react";
 import { createVPSCampaign, VPSCampaign, translateEvolutionError } from "@/lib/vps-queue";
+import { fetchInstances, isInstanceConnected } from "@/lib/evolution-api";
 
 interface Props {
   campaign: VPSCampaign;
@@ -20,6 +21,9 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [edited, setEdited] = useState<Record<string, string>>({});
+  // availableChips = chips atualmente cadastrados na Evolution API
+  const [availableChips, setAvailableChips] = useState<string[]>(campaign.chips);
+  const [loadingChips, setLoadingChips] = useState(false);
   const [selectedChips, setSelectedChips] = useState<Set<string>>(new Set(campaign.chips));
   const [minSec, setMinSec] = useState(campaign.min_sec);
   const [maxSec, setMaxSec] = useState(campaign.max_sec);
@@ -27,18 +31,36 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setSelected(new Set(errorNumbers.map((n) => n.number)));
-      setEdited({});
-      setSelectedChips(new Set(campaign.chips));
-      setMinSec(campaign.min_sec);
-      setMaxSec(campaign.max_sec);
-      setPerChipLimit(campaign.per_chip_limit);
-    }
+    if (!open) return;
+    setSelected(new Set(errorNumbers.map((n) => n.number)));
+    setEdited({});
+    setMinSec(campaign.min_sec);
+    setMaxSec(campaign.max_sec);
+    setPerChipLimit(campaign.per_chip_limit);
+
+    // Busca chips atuais cadastrados na Evolution API
+    setLoadingChips(true);
+    fetchInstances()
+      .then((list) => {
+        const connected = list
+          .filter(isInstanceConnected)
+          .map((i) => i.name);
+        // Se não houver nenhum conectado, mostra todos (mesmo desconectados)
+        const chips = connected.length > 0 ? connected : list.map((i) => i.name);
+        setAvailableChips(chips.length > 0 ? chips : campaign.chips);
+        // Seleciona todos por padrão
+        setSelectedChips(new Set(chips.length > 0 ? chips : campaign.chips));
+      })
+      .catch(() => {
+        // Fallback: usa os chips da campanha original
+        setAvailableChips(campaign.chips);
+        setSelectedChips(new Set(campaign.chips));
+      })
+      .finally(() => setLoadingChips(false));
   }, [open, campaign.id]);
 
   const allNumbersSelected = selected.size === errorNumbers.length;
-  const allChipsSelected = selectedChips.size === campaign.chips.length;
+  const allChipsSelected = selectedChips.size === availableChips.length;
 
   const toggleAllNumbers = () => {
     setSelected(
@@ -64,6 +86,8 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
       return next;
     });
   };
+
+  const selectAllChips = () => setSelectedChips(new Set(availableChips));
 
   const handleSubmit = async () => {
     if (selected.size === 0) return toast.error("Selecione ao menos 1 número");
@@ -228,43 +252,52 @@ export function RetentarDialog({ campaign, open, onClose, onSuccess }: Props) {
           {/* ── Chips para reenvio ── */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <Label>Chips para reenvio</Label>
+              <Label className="flex items-center gap-2">
+                Chips para reenvio
+                {loadingChips && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+              </Label>
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-xs h-7 gap-1.5"
-                onClick={() => setSelectedChips(new Set(campaign.chips))}
-                disabled={allChipsSelected}
+                onClick={selectAllChips}
+                disabled={allChipsSelected || loadingChips}
               >
                 <Shuffle className="h-3 w-3" />
                 Todos (aleatório)
               </Button>
             </div>
 
-            <div className="flex flex-wrap gap-2 p-3 border border-border rounded-md bg-muted/20">
-              {campaign.chips.map((chip) => {
-                const active = selectedChips.has(chip);
-                return (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => toggleChip(chip)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                      active
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                        : "bg-transparent text-muted-foreground border-border hover:border-primary/60 hover:text-foreground"
-                    }`}
-                  >
-                    {chip}
-                  </button>
-                );
-              })}
+            <div className="flex flex-wrap gap-2 p-3 border border-border rounded-md bg-muted/20 min-h-[48px]">
+              {loadingChips ? (
+                <span className="text-xs text-muted-foreground self-center">Carregando chips...</span>
+              ) : availableChips.length === 0 ? (
+                <span className="text-xs text-muted-foreground self-center">Nenhum chip conectado</span>
+              ) : (
+                availableChips.map((chip) => {
+                  const active = selectedChips.has(chip);
+                  return (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => toggleChip(chip)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        active
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "bg-transparent text-muted-foreground border-border hover:border-primary/60 hover:text-foreground"
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  );
+                })
+              )}
             </div>
 
             <p className="text-xs text-muted-foreground mt-1">
               {allChipsSelected
                 ? "Chip escolhido aleatoriamente a cada envio"
-                : `${selectedChips.size} de ${campaign.chips.length} chip${campaign.chips.length !== 1 ? "s" : ""} selecionado${selectedChips.size !== 1 ? "s" : ""} — envios distribuídos entre eles`}
+                : `${selectedChips.size} de ${availableChips.length} chip${availableChips.length !== 1 ? "s" : ""} selecionado${selectedChips.size !== 1 ? "s" : ""} — envios distribuídos entre eles`}
             </p>
           </div>
 
