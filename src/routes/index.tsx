@@ -425,7 +425,7 @@ function ConversasPage() {
                             : "bg-bubble-in text-foreground rounded-tl-none"
                         }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap break-words">{text}</p>
+                        <p className="text-sm whitespace-pre-wrap break-words text-slate-50">{text}</p>
                         <p className="text-[10px] text-muted-foreground text-right mt-1">
                           {formatTime(ts)}
                         </p>
