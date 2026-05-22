@@ -426,7 +426,7 @@ function ConversasPage() {
                         }`}
                       >
                         <p className="text-sm whitespace-pre-wrap break-words text-slate-50">{text}</p>
-                        <p className="text-[10px] text-muted-foreground text-right mt-1">
+                        <p className="max-w-[70%] rounded-lg px-3 py-2 shadow bg-bubble-out text-foreground rounded-tr-none text-lime-500">
                           {formatTime(ts)}
                         </p>
                       </div>
