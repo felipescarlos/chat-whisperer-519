@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, Send, MessageCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -73,6 +73,7 @@ function getChatRemoteJidAlt(c: Chat): string | null {
 }
 
 function ConversasPage() {
+  const navigate = useNavigate();
   const { chat: searchChatNum } = Route.useSearch();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [stages, setStages] = useState<CRMStage[]>([]);
@@ -183,10 +184,18 @@ function ConversasPage() {
 
   // Handle URL auto-select search param
   useEffect(() => {
-    if (searchChatNum && allChats.length > 0) {
-      const match = allChats.find((c) => jidToNumber(c.remoteJid) === searchChatNum);
-      if (match && (!selected || selected.remoteJid !== match.remoteJid)) {
-        setSelected(match);
+    if (searchChatNum) {
+      if (allChats.length > 0) {
+        const match = allChats.find((c) => jidToNumber(c.remoteJid) === searchChatNum);
+        if (match) {
+          if (!selected || selected.remoteJid !== match.remoteJid) {
+            setSelected(match);
+          }
+        }
+      }
+    } else {
+      if (selected) {
+        setSelected(null);
       }
     }
   }, [searchChatNum, allChats, selected]);
@@ -381,7 +390,12 @@ function ConversasPage() {
               return (
                 <button
                   key={`${c.__instance}-${c.remoteJid}`}
-                  onClick={() => setSelected(c)}
+                  onClick={() => {
+                    navigate({
+                      to: "/",
+                      search: { chat: jidToNumber(c.remoteJid) },
+                    });
+                  }}
                   className={`w-full flex gap-3 px-3 py-3 hover:bg-accent/50 border-b border-border/50 text-left transition-colors ${
                     active ? "bg-accent" : ""
                   }`}
