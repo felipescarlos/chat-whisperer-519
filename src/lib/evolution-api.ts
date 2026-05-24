@@ -392,3 +392,109 @@ export function setProxy(instanceName: string, config: ProxyConfig) {
     body: JSON.stringify(config),
   });
 }
+
+// ─── CRM API Client ──────────────────────────────────────────────────────────
+
+export interface CRMContact {
+  id: string;
+  number: string;
+  name: string | null;
+  instance: string | null;
+  notes: string | null;
+  tags: string;
+  botEnabled: boolean;
+  stageId: string | null;
+  stage: { id: string; name: string; color: string; orderIndex: number } | null;
+  createdAt: string;
+  updatedAt: string;
+  messages?: Message[];
+}
+
+export interface CRMStage {
+  id: string;
+  name: string;
+  color: string;
+  orderIndex: number;
+  _count?: { contacts: number };
+}
+
+async function crmRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${EVOLUTION_BASE_URL}/agent/api${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`CRM API ${res.status}: ${text || res.statusText}`);
+  }
+  const text = await res.text();
+  if (!text) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as unknown as T;
+  }
+}
+
+export function fetchCRMContacts(stageId?: string, search?: string) {
+  const qs = new URLSearchParams();
+  if (stageId) qs.append("stageId", stageId);
+  if (search) qs.append("search", search);
+  const query = qs.toString();
+  return crmRequest<CRMContact[]>(`/contacts${query ? `?${query}` : ""}`);
+}
+
+export function fetchCRMMessages(number: string) {
+  return crmRequest<Message[]>(`/contacts/${encodeURIComponent(number)}/messages`);
+}
+
+export function updateCRMContact(number: string, data: {
+  name?: string | null;
+  notes?: string | null;
+  tags?: string;
+  botEnabled?: boolean;
+  stageId?: string | null;
+}) {
+  return crmRequest<CRMContact>(`/contacts/${encodeURIComponent(number)}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export function sendCRMMessage(instance: string, number: string, text: string) {
+  return crmRequest<{ success: boolean; message: Message }>(`/message/send`, {
+    method: "POST",
+    body: JSON.stringify({ instance, number, text }),
+  });
+}
+
+export function fetchCRMStages() {
+  return crmRequest<CRMStage[]>("/stages");
+}
+
+export function createCRMStage(data: { name: string; color?: string; orderIndex?: number }) {
+  return crmRequest<CRMStage>("/stages", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateCRMStage(id: string, data: { name?: string; color?: string; orderIndex?: number }) {
+  return crmRequest<CRMStage>(`/stages/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteCRMStage(id: string) {
+  return crmRequest<{ success: boolean }>(`/stages/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export function fetchFunnelStats() {
+  return crmRequest<CRMStage[]>("/funnel/stats");
+}

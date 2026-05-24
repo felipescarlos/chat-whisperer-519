@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as HistoricoRouteImport } from './routes/historico'
+import { Route as FunnelRouteImport } from './routes/funnel'
 import { Route as DisparosRouteImport } from './routes/disparos'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
@@ -20,6 +21,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const HistoricoRoute = HistoricoRouteImport.update({
   id: '/historico',
   path: '/historico',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FunnelRoute = FunnelRouteImport.update({
+  id: '/funnel',
+  path: '/funnel',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DisparosRoute = DisparosRouteImport.update({
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/disparos': typeof DisparosRoute
+  '/funnel': typeof FunnelRoute
   '/historico': typeof HistoricoRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/disparos': typeof DisparosRoute
+  '/funnel': typeof FunnelRoute
   '/historico': typeof HistoricoRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/disparos': typeof DisparosRoute
+  '/funnel': typeof FunnelRoute
   '/historico': typeof HistoricoRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/disparos'
+    | '/funnel'
     | '/historico'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/disparos'
+    | '/funnel'
     | '/historico'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/disparos'
+    | '/funnel'
     | '/historico'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   DashboardRoute: typeof DashboardRoute
   DisparosRoute: typeof DisparosRoute
+  FunnelRoute: typeof FunnelRoute
   HistoricoRoute: typeof HistoricoRoute
 }
 
@@ -128,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/historico'
       fullPath: '/historico'
       preLoaderRoute: typeof HistoricoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/funnel': {
+      id: '/funnel'
+      path: '/funnel'
+      fullPath: '/funnel'
+      preLoaderRoute: typeof FunnelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/disparos': {
@@ -182,8 +202,18 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRoute,
   DashboardRoute: DashboardRoute,
   DisparosRoute: DisparosRoute,
+  FunnelRoute: FunnelRoute,
   HistoricoRoute: HistoricoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

@@ -1,10 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { MessageCircle, Smartphone, Send, History, Settings, LogOut, LayoutDashboard } from "lucide-react";
+import { MessageCircle, Smartphone, Send, History, Settings, LogOut, LayoutDashboard, Trello } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth";
 
 const items = [
   { to: "/", label: "Conversas", icon: MessageCircle },
+  { to: "/funnel", label: "Funil", icon: Trello },
   { to: "/chips", label: "Chips", icon: Smartphone },
   { to: "/disparos", label: "Disparos", icon: Send },
   { to: "/historico", label: "Histórico", icon: History },
