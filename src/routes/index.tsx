@@ -136,7 +136,7 @@ function ConversasPage() {
 
   useEffect(() => {
     loadChats();
-    const interval = setInterval(() => loadChats(true), 15000);
+    const interval = setInterval(() => loadChats(true), 5000);
     return () => clearInterval(interval);
   }, [loadChats]);
 
@@ -237,7 +237,7 @@ function ConversasPage() {
     setMessages([]);
     lastMessageIdRef.current = null;
     loadMessages();
-    const interval = setInterval(() => loadMessages(true), 5000);
+    const interval = setInterval(() => loadMessages(true), 1500);
     return () => clearInterval(interval);
   }, [loadMessages, selected]);
 

@@ -112,7 +112,7 @@ function FunnelPage() {
   // Load initial data and poll updates
   useEffect(() => {
     loadCRMData();
-    const interval = setInterval(() => loadCRMData(true), 15000);
+    const interval = setInterval(() => loadCRMData(true), 5000);
     return () => clearInterval(interval);
   }, [loadCRMData]);
 
