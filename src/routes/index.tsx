@@ -56,6 +56,12 @@ function formatTime(ts?: number) {
   return `${dateStr} ${timeStr}`;
 }
 
+function getChatRemoteJidAlt(c: Chat): string | null {
+  if ((c as any).remoteJidAlt) return (c as any).remoteJidAlt as string;
+  if (c.lastMessage?.key?.remoteJidAlt) return c.lastMessage.key.remoteJidAlt;
+  return null;
+}
+
 function ConversasPage() {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [filterInstance, setFilterInstance] = useState<string>("all");
@@ -117,7 +123,7 @@ function ConversasPage() {
     for (const chats of Object.values(chatsByInstance)) {
       for (const c of chats) {
         if (!c.remoteJid.includes("@lid")) continue;
-        const alt = (c as any).remoteJidAlt as string | undefined | null;
+        const alt = getChatRemoteJidAlt(c);
         if (alt) {
           const phone = alt.replace(/@.*$/, "");
           if (phone) map.set(phone, c.remoteJid);
@@ -144,7 +150,7 @@ function ConversasPage() {
         // @lid entries without remoteJidAlt cannot be mapped to a real phone
         // number — they are almost always duplicates of a @s.whatsapp.net entry.
         // Evolution's own manager skips them; we do the same.
-        if (c.remoteJid.includes("@lid") && !((c as any).remoteJidAlt)) continue;
+        if (c.remoteJid.includes("@lid") && !getChatRemoteJidAlt(c)) continue;
         list.push({ ...c, __instance: inst });
       }
     }
@@ -199,7 +205,7 @@ function ConversasPage() {
     try {
       // If the selected chat is a regular phone JID, also include any @lid
       // variant we know about — Evolution may have stored some messages under @lid.
-      const explicitAlt = (selected as any).remoteJidAlt as string | null | undefined;
+      const explicitAlt = getChatRemoteJidAlt(selected);
       const phoneNum = getSendableNumber(selected as Parameters<typeof getSendableNumber>[0]);
       const lidJid = explicitAlt ? null : (phoneToLid.get(phoneNum) ?? null);
 
