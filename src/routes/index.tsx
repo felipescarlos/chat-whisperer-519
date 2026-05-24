@@ -23,6 +23,7 @@ import {
   formatPhoneNumber,
   getMessageTimestamp,
   getMessageText,
+  getChatLastMessageText,
   isInstanceConnected,
   CRMContact,
   CRMStage,
