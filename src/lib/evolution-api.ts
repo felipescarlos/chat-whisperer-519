@@ -439,16 +439,48 @@ async function crmRequest<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-export function fetchCRMContacts(stageId?: string, search?: string) {
+export function mapDbMessageToEvolution(dbMsg: any): Message {
+  if (!dbMsg) return {} as Message;
+  // If it's already in Evolution format, return it
+  if (dbMsg.key) {
+    return {
+      ...dbMsg,
+      text: dbMsg.text || getMessageText(dbMsg),
+      fromMe: dbMsg.fromMe !== undefined ? dbMsg.fromMe : !!dbMsg.key.fromMe,
+      messageTimestamp: dbMsg.messageTimestamp,
+      messageId: dbMsg.messageId || dbMsg.key.id,
+    } as Message;
+  }
+
+  // If it is a flat database message, add nested properties
+  return {
+    ...dbMsg, // keep id, messageId, contactId, fromMe, text, messageTimestamp, createdAt
+    key: {
+      id: dbMsg.messageId || dbMsg.id || `msg-${Date.now()}`,
+      remoteJid: dbMsg.contactId || "",
+      fromMe: !!dbMsg.fromMe,
+    },
+    message: {
+      conversation: dbMsg.text || "",
+    },
+  } as Message;
+}
+
+export async function fetchCRMContacts(stageId?: string, search?: string) {
   const qs = new URLSearchParams();
   if (stageId) qs.append("stageId", stageId);
   if (search) qs.append("search", search);
   const query = qs.toString();
-  return crmRequest<CRMContact[]>(`/contacts${query ? `?${query}` : ""}`);
+  const list = await crmRequest<any[]>(`/contacts${query ? `?${query}` : ""}`);
+  return list.map((c) => ({
+    ...c,
+    messages: c.messages ? c.messages.map(mapDbMessageToEvolution) : [],
+  })) as CRMContact[];
 }
 
-export function fetchCRMMessages(number: string) {
-  return crmRequest<Message[]>(`/contacts/${encodeURIComponent(number)}/messages`);
+export async function fetchCRMMessages(number: string) {
+  const list = await crmRequest<any[]>(`/contacts/${encodeURIComponent(number)}/messages`);
+  return list.map(mapDbMessageToEvolution);
 }
 
 export function updateCRMContact(number: string, data: {
@@ -464,11 +496,15 @@ export function updateCRMContact(number: string, data: {
   });
 }
 
-export function sendCRMMessage(instance: string, number: string, text: string) {
-  return crmRequest<{ success: boolean; message: Message }>(`/message/send`, {
+export async function sendCRMMessage(instance: string, number: string, text: string) {
+  const res = await crmRequest<{ success: boolean; message: any }>(`/message/send`, {
     method: "POST",
     body: JSON.stringify({ instance, number, text }),
   });
+  return {
+    success: res.success,
+    message: mapDbMessageToEvolution(res.message),
+  };
 }
 
 export function fetchCRMStages() {
