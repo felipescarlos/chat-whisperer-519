@@ -160,9 +160,9 @@ function ConversasPage() {
           __crmContact: c,
           lastMessage: lastMsg
             ? {
-                message: { conversation: lastMsg.text },
+                message: { conversation: lastMsg.text || getMessageText(lastMsg) || "" },
                 messageTimestamp: lastMsg.messageTimestamp,
-                key: { fromMe: lastMsg.fromMe },
+                key: { fromMe: lastMsg.fromMe !== undefined ? lastMsg.fromMe : !!lastMsg.key?.fromMe },
               }
             : null,
         } as ChatWithInstance;
@@ -464,12 +464,13 @@ function ConversasPage() {
                   </div>
                 )}
                 {messages.map((m) => {
-                  const fromMe = m.key.fromMe;
-                  const text = getMessageText(m);
+                  const fromMe = m.key?.fromMe ?? (m as any).fromMe;
+                  const text = getMessageText(m) || (m as any).text || "";
                   const ts = getMessageTimestamp(m);
+                  const msgId = m.key?.id ?? (m as any).messageId ?? (m as any).id;
                   return (
                     <div
-                      key={m.key.id}
+                      key={msgId}
                       className={`flex ${fromMe ? "justify-end" : "justify-start"} mb-2`}
                     >
                       <div

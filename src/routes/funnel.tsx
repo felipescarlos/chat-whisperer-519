@@ -584,8 +584,9 @@ interface ContactCardProps {
 
 function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate }: ContactCardProps) {
   const lastMsg = contact.messages && contact.messages[0];
-  const lastMsgText = lastMsg ? lastMsg.text : "";
+  const lastMsgText = lastMsg ? (lastMsg.text || getMessageText(lastMsg) || "") : "";
   const lastMsgTime = lastMsg ? lastMsg.messageTimestamp : null;
+  const lastMsgFromMe = lastMsg ? (lastMsg.fromMe !== undefined ? lastMsg.fromMe : !!lastMsg.key?.fromMe) : false;
 
   // Format short timestamp
   const shortTime = useMemo(() => {
@@ -624,7 +625,7 @@ function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate }: Conta
       {/* Snippet da Última Mensagem */}
       {lastMsgText && (
         <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed whitespace-pre-wrap break-words bg-muted/40 p-1.5 rounded border border-border/30">
-          {lastMsg.fromMe && <span className="font-medium text-primary mr-1">Você:</span>}
+          {lastMsgFromMe && <span className="font-medium text-primary mr-1">Você:</span>}
           {lastMsgText}
         </p>
       )}
