@@ -193,6 +193,8 @@ function ConversasPage() {
   // Load messages when select
   const loadMessages = useCallback(async (isBackground = false) => {
     if (!selected) return;
+    const currentJid = selected.remoteJid;
+    const currentInstance = selected.__instance;
     if (!isBackground) setLoadingMsgs(true);
     try {
       // If the selected chat is a regular phone JID, also include any @lid
@@ -207,7 +209,25 @@ function ConversasPage() {
         explicitAlt || lidJid,
         isBackground ? 20 : 500,
       );
-      const sorted = [...msgs].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
+
+      // Avoid updating state if the selected chat changed while waiting for API
+      if (selected.remoteJid !== currentJid || selected.__instance !== currentInstance) {
+        return;
+      }
+
+      // Filter messages locally to prevent Evolution API from showing messages from other contacts
+      const validJids = new Set<string>();
+      validJids.add(selected.remoteJid);
+      if (explicitAlt) validJids.add(explicitAlt);
+      if (lidJid) validJids.add(lidJid);
+      if (phoneNum) {
+        validJids.add(`${phoneNum}@s.whatsapp.net`);
+        validJids.add(`${phoneNum}@c.us`);
+        validJids.add(`${phoneNum}@lid`);
+      }
+
+      const filtered = msgs.filter((m) => m.key && m.key.remoteJid && validJids.has(m.key.remoteJid));
+      const sorted = [...filtered].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
 
       // Deduplicate by ID
       const unique: Message[] = [];
@@ -229,7 +249,9 @@ function ConversasPage() {
         toast.error("Falha ao carregar mensagens");
       }
     } finally {
-      if (!isBackground) setLoadingMsgs(false);
+      if (!isBackground && selected.remoteJid === currentJid && selected.__instance === currentInstance) {
+        setLoadingMsgs(false);
+      }
     }
   }, [selected, phoneToLid]);
 
@@ -416,19 +438,21 @@ function ConversasPage() {
                   return (
                     <div
                       key={m.key.id}
-                      className={`flex ${fromMe ? "justify-end" : "justify-start"}`}
+                      className={`flex ${fromMe ? "justify-end" : "justify-start"} mb-2`}
                     >
                       <div
-                        className={`max-w-[70%] rounded-lg px-3 py-2 shadow ${
+                        className={`max-w-[70%] rounded-lg px-3.5 py-2 shadow-sm ${
                           fromMe
-                            ? "bg-bubble-out text-foreground rounded-tr-none"
-                            : "bg-bubble-in text-foreground rounded-tl-none"
+                            ? "bg-bubble-out text-white rounded-tr-none"
+                            : "bg-bubble-in text-zinc-900 rounded-tl-none border border-border/30"
                         }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap break-words text-slate-50">{text}</p>
-                        <p className="max-w-[70%] rounded-lg px-3 py-2 shadow bg-bubble-out text-foreground rounded-tr-none text-lime-500">
-                          {formatTime(ts)}
-                        </p>
+                        <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">{text}</p>
+                        <div className="flex justify-end items-center mt-1 -mr-1">
+                          <span className={`text-[10px] select-none ${fromMe ? "text-white/70" : "text-muted-foreground"}`}>
+                            {formatTime(ts)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
