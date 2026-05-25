@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RadarRouteImport } from './routes/radar'
 import { Route as HistoricoRouteImport } from './routes/historico'
 import { Route as FunnelRouteImport } from './routes/funnel'
 import { Route as DisparosRouteImport } from './routes/disparos'
@@ -18,6 +19,11 @@ import { Route as ChipsRouteImport } from './routes/chips'
 import { Route as AgenteRouteImport } from './routes/agente'
 import { Route as IndexRouteImport } from './routes/index'
 
+const RadarRoute = RadarRouteImport.update({
+  id: '/radar',
+  path: '/radar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HistoricoRoute = HistoricoRouteImport.update({
   id: '/historico',
   path: '/historico',
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/disparos': typeof DisparosRoute
   '/funnel': typeof FunnelRoute
   '/historico': typeof HistoricoRoute
+  '/radar': typeof RadarRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/disparos': typeof DisparosRoute
   '/funnel': typeof FunnelRoute
   '/historico': typeof HistoricoRoute
+  '/radar': typeof RadarRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/disparos': typeof DisparosRoute
   '/funnel': typeof FunnelRoute
   '/historico': typeof HistoricoRoute
+  '/radar': typeof RadarRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/disparos'
     | '/funnel'
     | '/historico'
+    | '/radar'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/disparos'
     | '/funnel'
     | '/historico'
+    | '/radar'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/disparos'
     | '/funnel'
     | '/historico'
+    | '/radar'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,10 +144,18 @@ export interface RootRouteChildren {
   DisparosRoute: typeof DisparosRoute
   FunnelRoute: typeof FunnelRoute
   HistoricoRoute: typeof HistoricoRoute
+  RadarRoute: typeof RadarRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/radar': {
+      id: '/radar'
+      path: '/radar'
+      fullPath: '/radar'
+      preLoaderRoute: typeof RadarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/historico': {
       id: '/historico'
       path: '/historico'
@@ -204,6 +224,7 @@ const rootRouteChildren: RootRouteChildren = {
   DisparosRoute: DisparosRoute,
   FunnelRoute: FunnelRoute,
   HistoricoRoute: HistoricoRoute,
+  RadarRoute: RadarRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

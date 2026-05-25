@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Clock, RefreshCw, GitBranch } from "lucide-react";
+import { Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Clock, RefreshCw, GitBranch, Radio } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,12 +89,21 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
   const [perChipLimit, setPerChipLimit] = useState(50);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [fromRadar, setFromRadar] = useState(false);
 
   useEffect(() => {
     setLabels(loadAllLabels());
     fetchInstances()
       .then(setInstances)
       .catch(() => toast.error("Falha ao carregar chips"));
+
+    // Carrega números vindos do Radar
+    const radarNumbers = sessionStorage.getItem("radar_numbers");
+    if (radarNumbers) {
+      setNumbers(radarNumbers);
+      setFromRadar(true);
+      sessionStorage.removeItem("radar_numbers");
+    }
   }, []);
 
   const toggle = (name: string) => {
@@ -181,6 +190,12 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
           <Label htmlFor="numbers" className="mb-2 block">
             Números de Destino (um por linha)
           </Label>
+          {fromRadar && (
+            <div className="mb-2 px-3 py-2 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
+              <Radio className="h-3.5 w-3.5 shrink-0" />
+              Números importados do Radar de Prospects
+            </div>
+          )}
           <Textarea
             id="numbers"
             value={numbers}
@@ -193,6 +208,7 @@ function NovoDisparoTab({ onCreated }: { onCreated: () => void }) {
             {numbers.split("\n").filter((n) => n.trim()).length} números listados
           </p>
         </div>
+
       </div>
 
       <div className="space-y-4">

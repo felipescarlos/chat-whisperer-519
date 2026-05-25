@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { MessageCircle, Smartphone, Send, History, Settings, LogOut, LayoutDashboard, Trello } from "lucide-react";
+import { MessageCircle, Smartphone, Send, History, Settings, LogOut, LayoutDashboard, Trello, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth";
 
@@ -8,10 +8,12 @@ const items = [
   { to: "/funnel", label: "Funil", icon: Trello },
   { to: "/chips", label: "Chips", icon: Smartphone },
   { to: "/disparos", label: "Disparos", icon: Send },
+  { to: "/radar", label: "Radar", icon: Radio },
   { to: "/historico", label: "Histórico", icon: History },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/configuracoes", label: "Config", icon: Settings },
 ] as const;
+
 
 export function AppSidebar() {
   const path = useRouterState({ select: (s) => s.location.pathname });

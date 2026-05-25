@@ -534,3 +534,85 @@ export function deleteCRMStage(id: string) {
 export function fetchFunnelStats() {
   return crmRequest<CRMStage[]>("/funnel/stats");
 }
+
+// ─── Radar de Prospects ───────────────────────────────────────────────────────
+
+export interface Prospect {
+  id: string;
+  name: string;
+  whatsappE164: string | null;
+  whatsappDisplay: string | null;
+  city: string | null;
+  state: string | null;
+  sources: string[];
+  sourceUrls: Record<string, string>;
+  thumbUrl: string | null;
+  importedContactId: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface ProspectListResponse {
+  total: number;
+  page: number;
+  limit: number;
+  items: Prospect[];
+}
+
+export interface ProspectStats {
+  total: number;
+  withPhone: number;
+  bySource: { fatalmodel: number; skokka: number; fotoacomp: number };
+  multiPortal: number;
+  byState: { state: string; count: number }[];
+}
+
+export interface ScrapeJobState {
+  status: "idle" | "running" | "done" | "error";
+  startedAt: string | null;
+  finishedAt: string | null;
+  message: string;
+  counts: { fatalmodel: number; skokka: number; fotoacomp: number; total: number; upserted: number };
+  error: string | null;
+}
+
+export function fetchProspects(params: {
+  state?: string;
+  city?: string;
+  source?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  withPhone?: boolean;
+}) {
+  const qs = new URLSearchParams();
+  if (params.state) qs.append("state", params.state);
+  if (params.city) qs.append("city", params.city);
+  if (params.source) qs.append("source", params.source);
+  if (params.search) qs.append("search", params.search);
+  if (params.page) qs.append("page", String(params.page));
+  if (params.limit) qs.append("limit", String(params.limit));
+  if (params.withPhone) qs.append("withPhone", "true");
+  return crmRequest<ProspectListResponse>(`/prospects?${qs.toString()}`);
+}
+
+export function fetchProspectStats() {
+  return crmRequest<ProspectStats>("/prospects/stats");
+}
+
+export function triggerScrape(states: string[]) {
+  return crmRequest<{ ok: boolean; message: string }>("/prospects/scrape", {
+    method: "POST",
+    body: JSON.stringify({ states }),
+  });
+}
+
+export function fetchScrapeStatus() {
+  return crmRequest<ScrapeJobState>("/prospects/scrape/status");
+}
+
+export function clearProspects() {
+  return crmRequest<{ ok: boolean; deleted: number }>("/prospects", {
+    method: "DELETE",
+  });
+}
