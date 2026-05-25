@@ -488,9 +488,9 @@ function BancoDeDadosPage() {
                             <p className="font-semibold text-xs truncate" title={prospect.name}>
                               {prospect.name}
                             </p>
-                            {prospect.whatsappDisplay ? (
+                            {prospect.whatsappE164 || prospect.whatsappDisplay ? (
                               <p className="text-[10px] text-emerald-400 font-mono font-medium truncate">
-                                {prospect.whatsappDisplay}
+                                {prospect.whatsappDisplay || prospect.whatsappE164}
                               </p>
                             ) : (
                               <p className="text-[10px] text-muted-foreground/50 italic truncate">Sem WhatsApp</p>
