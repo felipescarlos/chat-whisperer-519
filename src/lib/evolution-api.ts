@@ -617,3 +617,46 @@ export function clearProspects() {
     method: "DELETE",
   });
 }
+
+// ─── Rotinas de Captura Agendada ──────────────────────────────────────────────
+
+export interface ProspectRoutine {
+  id: string;
+  name: string;
+  state: string;
+  cities: string[];
+  cron: string;
+  enabled: boolean;
+  lastRun: string | null;
+  createdAt: string;
+}
+
+export function fetchRoutines() {
+  return crmRequest<ProspectRoutine[]>("/prospects/routines");
+}
+
+export function createRoutine(data: {
+  name: string;
+  state: string;
+  cities: string[];
+  cronExpr: string;
+}) {
+  return crmRequest<ProspectRoutine>("/prospects/routines", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function toggleRoutine(id: string, enabled: boolean) {
+  return crmRequest<ProspectRoutine>(`/prospects/routines/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+export function deleteRoutine(id: string) {
+  return crmRequest<{ success: boolean }>(`/prospects/routines/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+

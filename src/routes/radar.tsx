@@ -3,16 +3,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Search, RefreshCw, Trash2, ChevronLeft, ChevronRight, ChevronDown,
   Radio, Database, Wifi, Send, SlidersHorizontal, X, Check,
-  Building2, Globe,
+  Building2, Globe, Clock, Plus, Calendar,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  Prospect, ProspectStats, ScrapeJobState,
+  Prospect, ProspectStats, ScrapeJobState, ProspectRoutine,
   fetchProspects, fetchProspectStats, fetchScrapeStatus,
-  triggerScrape, clearProspects,
+  triggerScrape, clearProspects, fetchRoutines, createRoutine,
+  toggleRoutine, deleteRoutine,
 } from "@/lib/evolution-api";
 
 export const Route = createFileRoute("/radar")({
@@ -185,6 +186,40 @@ function ScrapeStatusBanner({ jobState }: { jobState: ScrapeJobState | null }) {
   );
 }
 
+function getCronDescription(cronStr: string): string {
+  const parts = cronStr.split(" ");
+  if (parts.length < 5) return cronStr;
+  const [min, hour, dayOfMonth, month, dayOfWeek] = parts;
+
+  if (min === "0" && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+    return "A cada hora (no minuto 0)";
+  }
+
+  const formatTime = (h: string, m: string) => {
+    const pad = (s: string) => s.padStart(2, "0");
+    return `${pad(h)}:${pad(m)}`;
+  };
+
+  if (dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+    return `Todo dia às ${formatTime(hour, min)}`;
+  }
+
+  if (dayOfMonth === "*" && month === "*" && dayOfWeek !== "*") {
+    const days: Record<string, string> = {
+      "0": "Domingo",
+      "1": "Segunda-feira",
+      "2": "Terça-feira",
+      "3": "Quarta-feira",
+      "4": "Quinta-feira",
+      "5": "Sexta-feira",
+      "6": "Sábado",
+    };
+    return `Toda ${days[dayOfWeek] || `dia ${dayOfWeek}`} às ${formatTime(hour, min)}`;
+  }
+
+  return `Cron: ${cronStr}`;
+}
+
 function RadarPage() {
   const navigate = useNavigate();
 
@@ -194,6 +229,23 @@ function RadarPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [jobState, setJobState] = useState<ScrapeJobState | null>(null);
+
+  // Tab control
+  const [activeTab, setActiveTab] = useState<"prospects" | "routines">("prospects");
+
+  // Routines state
+  const [routines, setRoutines] = useState<ProspectRoutine[]>([]);
+  const [loadingRoutines, setLoadingRoutines] = useState(false);
+
+  // Routine Modal
+  const [showRoutineModal, setShowRoutineModal] = useState(false);
+  const [routineName, setRoutineName] = useState("");
+  const [routineState, setRoutineState] = useState("rn");
+  const [routineCities, setRoutineCities] = useState("");
+  const [routineFrequency, setRoutineFrequency] = useState("daily"); // "daily" | "weekly" | "hourly"
+  const [routineHour, setRoutineHour] = useState("03:00");
+  const [routineDayOfWeek, setRoutineDayOfWeek] = useState("1");
+  const [savingRoutine, setSavingRoutine] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -257,6 +309,18 @@ function RadarPage() {
     }
   }, []);
 
+  const loadRoutines = useCallback(async () => {
+    setLoadingRoutines(true);
+    try {
+      const r = await fetchRoutines();
+      setRoutines(r);
+    } catch {
+      toast.error("Falha ao carregar rotinas");
+    } finally {
+      setLoadingRoutines(false);
+    }
+  }, []);
+
   const checkJobStatus = useCallback(async () => {
     try {
       const state = await fetchScrapeStatus();
@@ -296,6 +360,13 @@ function RadarPage() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [scraping, checkJobStatus]);
+
+  // Load routines when tab changes
+  useEffect(() => {
+    if (activeTab === "routines") {
+      loadRoutines();
+    }
+  }, [activeTab, loadRoutines]);
 
   // Reset page on filter change
   useEffect(() => {
@@ -353,6 +424,76 @@ function RadarPage() {
     } catch (e: any) {
       setScraping(false);
       toast.error(e.message || "Falha ao iniciar scraping");
+    }
+  };
+
+  const handleCreateRoutine = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!routineName.trim()) {
+      toast.error("Por favor, digite um nome para a rotina");
+      return;
+    }
+
+    setSavingRoutine(true);
+    try {
+      // Calcula a expressão cron
+      let cronExpr = "0 * * * *"; // hourly default
+      if (routineFrequency === "daily") {
+        const [hour, min] = routineHour.split(":");
+        cronExpr = `${parseInt(min, 10)} ${parseInt(hour, 10)} * * *`;
+      } else if (routineFrequency === "weekly") {
+        const [hour, min] = routineHour.split(":");
+        cronExpr = `${parseInt(min, 10)} ${parseInt(hour, 10)} * * ${routineDayOfWeek}`;
+      }
+
+      const citiesArr = routineCities
+        .split(",")
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0);
+
+      await createRoutine({
+        name: routineName,
+        state: routineState,
+        cities: citiesArr,
+        cronExpr,
+      });
+
+      toast.success("Rotina agendada com sucesso!");
+      setShowRoutineModal(false);
+      
+      // Reset form
+      setRoutineName("");
+      setRoutineCities("");
+      setRoutineFrequency("daily");
+      setRoutineHour("03:00");
+      setRoutineDayOfWeek("1");
+
+      loadRoutines();
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao criar rotina");
+    } finally {
+      setSavingRoutine(false);
+    }
+  };
+
+  const handleToggleRoutine = async (id: string, currentEnabled: boolean) => {
+    try {
+      await toggleRoutine(id, !currentEnabled);
+      toast.success(`Rotina ${!currentEnabled ? "ativada" : "desativada"} com sucesso`);
+      loadRoutines();
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao atualizar rotina");
+    }
+  };
+
+  const handleDeleteRoutine = async (id: string) => {
+    if (!confirm("Deseja realmente remover esta rotina de agendamento?")) return;
+    try {
+      await deleteRoutine(id);
+      toast.success("Rotina removida com sucesso");
+      loadRoutines();
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover rotina");
     }
   };
 
@@ -503,6 +644,30 @@ function RadarPage() {
             </div>
           )}
 
+          {/* Tab Switcher */}
+          <div className="flex border-b border-border gap-2">
+            <button
+              onClick={() => setActiveTab("prospects")}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
+                activeTab === "prospects"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Prospects Capturados
+            </button>
+            <button
+              onClick={() => setActiveTab("routines")}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
+                activeTab === "routines"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Rotinas Agendadas
+            </button>
+          </div>
+
           {/* Layout Split: Tree Sidebar + Main Content */}
           <div className="flex flex-col lg:flex-row gap-6 items-start">
             {/* Left Sidebar Tree */}
@@ -517,6 +682,7 @@ function RadarPage() {
                     onClick={() => {
                       setFilterState("");
                       setFilterCity("");
+                      if (activeTab !== "prospects") setActiveTab("prospects");
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       !filterState && !filterCity
@@ -558,6 +724,7 @@ function RadarPage() {
                               onClick={() => {
                                 setFilterState(stateCode);
                                 setFilterCity("");
+                                if (activeTab !== "prospects") setActiveTab("prospects");
                               }}
                               className={`flex-1 flex items-center justify-between px-2.5 py-1 rounded-md text-sm font-medium text-left transition-colors truncate ${
                                 isSelected
@@ -590,6 +757,7 @@ function RadarPage() {
                                       onClick={() => {
                                         setFilterState(stateCode);
                                         setFilterCity(city);
+                                        if (activeTab !== "prospects") setActiveTab("prospects");
                                       }}
                                       className={`w-full flex items-center justify-between px-2.5 py-1 rounded-md text-xs font-medium text-left transition-colors truncate ${
                                         isCitySelected
@@ -619,247 +787,369 @@ function RadarPage() {
 
             {/* Main Content Area */}
             <div className="flex-1 w-full space-y-6">
-              {/* Toolbar: filtros + seleção */}
-              <div className="flex flex-wrap gap-2 items-center">
-                {/* Busca */}
-                <div className="relative flex-1 min-w-48 max-w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por nome..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9 bg-input border-border h-9 text-sm"
-                  />
-                  {search && (
+              {activeTab === "prospects" ? (
+                <>
+                  {/* Toolbar: filtros + seleção */}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {/* Busca */}
+                    <div className="relative flex-1 min-w-48 max-w-72">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por nome..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-9 bg-input border-border h-9 text-sm"
+                      />
+                      {search && (
+                        <button
+                          onClick={() => setSearch("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* State sync dropdown (mostly for visual/manual fallback) */}
+                    <select
+                      value={filterState}
+                      onChange={(e) => {
+                        setFilterState(e.target.value);
+                        setFilterCity("");
+                      }}
+                      className="h-9 px-2 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                    >
+                      <option value="">Todos os estados</option>
+                      {STATES.map((s) => (
+                        <option key={s.code} value={s.code}>
+                          {s.code} — {s.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Fonte */}
+                    <select
+                      value={filterSource}
+                      onChange={(e) => setFilterSource(e.target.value)}
+                      className="h-9 px-2 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                    >
+                      <option value="">Todos os portais</option>
+                      <option value="fatalmodel">Fatal Model</option>
+                      <option value="skokka">Skokka</option>
+                      <option value="fotoacomp">PhotoAcomp</option>
+                    </select>
+
+                    {/* Filtro WhatsApp */}
                     <button
-                      onClick={() => setSearch("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={() => setFilterPhone((v) => !v)}
+                      className={`h-9 px-3 text-sm rounded-md border transition-colors flex items-center gap-1.5 ${
+                        filterPhone
+                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
+                          : "bg-input border-border text-muted-foreground hover:text-foreground"
+                      }`}
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <Wifi className="h-3.5 w-3.5" />
+                      Com WhatsApp
                     </button>
-                  )}
-                </div>
 
-                {/* State sync dropdown (mostly for visual/manual fallback) */}
-                <select
-                  value={filterState}
-                  onChange={(e) => {
-                    setFilterState(e.target.value);
-                    setFilterCity("");
-                  }}
-                  className="h-9 px-2 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
-                >
-                  <option value="">Todos os estados</option>
-                  {STATES.map((s) => (
-                    <option key={s.code} value={s.code}>
-                      {s.code} — {s.label}
-                    </option>
-                  ))}
-                </select>
+                    <div className="ml-auto flex items-center gap-2">
+                      {/* Seleção */}
+                      {items.length > 0 && (
+                        <button
+                          onClick={handleSelectAll}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {selected.size === items.length
+                            ? "Desselecionar todos"
+                            : `Selecionar ${items.length}`}
+                        </button>
+                      )}
 
-                {/* Fonte */}
-                <select
-                  value={filterSource}
-                  onChange={(e) => setFilterSource(e.target.value)}
-                  className="h-9 px-2 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
-                >
-                  <option value="">Todos os portais</option>
-                  <option value="fatalmodel">Fatal Model</option>
-                  <option value="skokka">Skokka</option>
-                  <option value="fotoacomp">PhotoAcomp</option>
-                </select>
+                      {/* Enviar para Disparos */}
+                      {selected.size > 0 && (
+                        <Button
+                          size="sm"
+                          onClick={handleSendToDisparos}
+                          className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          Usar em Disparos ({selectedWithPhone.length} com WhatsApp)
+                        </Button>
+                      )}
+                    </div>
+                  </div>
 
-                {/* Filtro WhatsApp */}
-                <button
-                  onClick={() => setFilterPhone((v) => !v)}
-                  className={`h-9 px-3 text-sm rounded-md border transition-colors flex items-center gap-1.5 ${
-                    filterPhone
-                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
-                      : "bg-input border-border text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Wifi className="h-3.5 w-3.5" />
-                  Com WhatsApp
-                </button>
-
-                <div className="ml-auto flex items-center gap-2">
-                  {/* Seleção */}
-                  {items.length > 0 && (
-                    <button
-                      onClick={handleSelectAll}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {selected.size === items.length
-                        ? "Desselecionar todos"
-                        : `Selecionar ${items.length}`}
-                    </button>
-                  )}
-
-                  {/* Enviar para Disparos */}
-                  {selected.size > 0 && (
-                    <Button
-                      size="sm"
-                      onClick={handleSendToDisparos}
-                      className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      Usar em Disparos ({selectedWithPhone.length} com WhatsApp)
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Active Filter Badges */}
-              {(filterState || filterCity || filterSource || filterPhone || search) && (
-                <div className="flex flex-wrap gap-1.5 items-center bg-muted/20 border border-border/50 p-2 rounded-lg">
-                  <span className="text-xs text-muted-foreground mr-1">Filtros ativos:</span>
-                  {filterState && (
-                    <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                      Estado: {filterState}
+                  {/* Active Filter Badges */}
+                  {(filterState || filterCity || filterSource || filterPhone || search) && (
+                    <div className="flex flex-wrap gap-1.5 items-center bg-muted/20 border border-border/50 p-2 rounded-lg">
+                      <span className="text-xs text-muted-foreground mr-1">Filtros ativos:</span>
+                      {filterState && (
+                        <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
+                          Estado: {filterState}
+                          <button
+                            onClick={() => {
+                              setFilterState("");
+                              setFilterCity("");
+                            }}
+                            className="hover:text-foreground font-bold"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      )}
+                      {filterCity && (
+                        <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
+                          Cidade: {filterCity}
+                          <button
+                            onClick={() => setFilterCity("")}
+                            className="hover:text-foreground font-bold"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      )}
+                      {filterSource && (
+                        <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
+                          Portal: {SOURCES_LABELS[filterSource] || filterSource}
+                          <button onClick={() => setFilterSource("")} className="hover:text-foreground font-bold">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      )}
+                      {filterPhone && (
+                        <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          Com WhatsApp
+                          <button onClick={() => setFilterPhone(false)} className="hover:text-foreground font-bold">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      )}
+                      {search && (
+                        <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
+                          Busca: "{search}"
+                          <button onClick={() => setSearch("")} className="hover:text-foreground font-bold">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      )}
                       <button
                         onClick={() => {
                           setFilterState("");
                           setFilterCity("");
+                          setFilterSource("");
+                          setFilterPhone(false);
+                          setSearch("");
                         }}
-                        className="hover:text-foreground font-bold"
+                        className="text-xs text-muted-foreground hover:text-foreground underline ml-auto pl-2"
                       >
-                        <X className="h-3 w-3" />
+                        Limpar tudo
                       </button>
-                    </span>
-                  )}
-                  {filterCity && (
-                    <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                      Cidade: {filterCity}
-                      <button
-                        onClick={() => setFilterCity("")}
-                        className="hover:text-foreground font-bold"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  {filterSource && (
-                    <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                      Portal: {SOURCES_LABELS[filterSource] || filterSource}
-                      <button onClick={() => setFilterSource("")} className="hover:text-foreground font-bold">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  {filterPhone && (
-                    <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      Com WhatsApp
-                      <button onClick={() => setFilterPhone(false)} className="hover:text-foreground font-bold">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  {search && (
-                    <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                      Busca: "{search}"
-                      <button onClick={() => setSearch("")} className="hover:text-foreground font-bold">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  <button
-                    onClick={() => {
-                      setFilterState("");
-                      setFilterCity("");
-                      setFilterSource("");
-                      setFilterPhone(false);
-                      setSearch("");
-                    }}
-                    className="text-xs text-muted-foreground hover:text-foreground underline ml-auto pl-2"
-                  >
-                    Limpar tudo
-                  </button>
-                </div>
-              )}
-
-              {/* Contagem */}
-              <div className="text-xs text-muted-foreground flex justify-between items-center">
-                <span>
-                  {total.toLocaleString("pt-BR")} prospects encontrados
-                  {selected.size > 0 && (
-                    <span className="text-primary ml-2 font-medium">
-                      · {selected.size} selecionados
-                    </span>
-                  )}
-                </span>
-                {filterCity && (
-                  <span className="font-semibold text-primary">
-                    Mostrando resultados para {filterCity} — {filterState}
-                  </span>
-                )}
-              </div>
-
-              {/* Grid de cards */}
-              {loading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <div key={i} className="bg-card border border-border rounded-xl overflow-hidden animate-pulse">
-                      <div className="aspect-[4/5] bg-muted" />
-                      <div className="p-3 space-y-2">
-                        <div className="h-3 bg-muted rounded w-3/4" />
-                        <div className="h-2.5 bg-muted rounded w-1/2" />
-                      </div>
                     </div>
-                  ))}
-                </div>
-              ) : items.length === 0 ? (
-                <div className="text-center py-20 text-muted-foreground border border-dashed border-border rounded-xl">
-                  <Radio className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p className="font-medium">Nenhum prospect encontrado</p>
-                  <p className="text-sm mt-1">
-                    {total === 0
-                      ? 'Clique em "Atualizar Radar" para raspar os portais'
-                      : "Tente ajustar os filtros"}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {items.map((p) => (
-                    <ProspectCard
-                      key={p.id}
-                      prospect={p}
-                      selected={selected.has(p.id)}
-                      onToggle={handleToggle}
-                    />
-                  ))}
-                </div>
-              )}
+                  )}
 
-              {/* Paginação */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => p - 1)}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Página {page} de {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
+                  {/* Contagem */}
+                  <div className="text-xs text-muted-foreground flex justify-between items-center">
+                    <span>
+                      {total.toLocaleString("pt-BR")} prospects encontrados
+                      {selected.size > 0 && (
+                        <span className="text-primary ml-2 font-medium">
+                          · {selected.size} selecionados
+                        </span>
+                      )}
+                    </span>
+                    {filterCity && (
+                      <span className="font-semibold text-primary">
+                        Mostrando resultados para {filterCity} — {filterState}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Grid de cards */}
+                  {loading ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                      {Array.from({ length: 12 }).map((_, i) => (
+                        <div key={i} className="bg-card border border-border rounded-xl overflow-hidden animate-pulse">
+                          <div className="aspect-[4/5] bg-muted" />
+                          <div className="p-3 space-y-2">
+                            <div className="h-3 bg-muted rounded w-3/4" />
+                            <div className="h-2.5 bg-muted rounded w-1/2" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : items.length === 0 ? (
+                    <div className="text-center py-20 text-muted-foreground border border-dashed border-border rounded-xl">
+                      <Radio className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                      <p className="font-medium">Nenhum prospect encontrado</p>
+                      <p className="text-sm mt-1">
+                        {total === 0
+                          ? 'Clique em "Atualizar Radar" para raspar os portais'
+                          : "Tente ajustar os filtros"}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                      {items.map((p) => (
+                        <ProspectCard
+                          key={p.id}
+                          prospect={p}
+                          selected={selected.has(p.id)}
+                          onToggle={handleToggle}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Paginação */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page <= 1}
+                        onClick={() => setPage((p) => p - 1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        Página {page} de {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page >= totalPages}
+                        onClick={() => setPage((p) => p + 1)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Routines View */}
+                  <div className="flex justify-between items-center bg-muted/10 border border-border/60 p-4 rounded-xl">
+                    <div>
+                      <h3 className="font-semibold text-sm">Agendamentos Recorrentes</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Configure rotinas recorrentes de scraping por estado ou cidade
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowRoutineModal(true)}
+                      className="gap-1.5"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Agendar Rotina
+                    </Button>
+                  </div>
+
+                  {loadingRoutines ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="h-24 bg-card border border-border rounded-xl animate-pulse" />
+                      ))}
+                    </div>
+                  ) : routines.length === 0 ? (
+                    <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
+                      <Clock className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                      <p className="font-medium">Nenhuma rotina agendada ainda</p>
+                      <p className="text-sm mt-1 mb-4 max-w-md mx-auto">
+                        Automatize a busca de novos prospects programando varreduras diárias ou semanais por cidade.
+                      </p>
+                      <Button size="sm" onClick={() => setShowRoutineModal(true)} className="gap-1.5">
+                        <Plus className="h-4 w-4" />
+                        Agendar Primeira Rotina
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {routines.map((r) => {
+                        const formattedDate = (dStr: string | null) => {
+                          if (!dStr) return "Nunca executado";
+                          return new Date(dStr).toLocaleString("pt-BR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          });
+                        };
+
+                        return (
+                          <div
+                            key={r.id}
+                            className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow hover:border-primary/30 transition-all duration-200"
+                          >
+                            <div className="space-y-1.5 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="font-semibold text-sm truncate">{r.name}</h4>
+                                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono font-bold uppercase shrink-0">
+                                  {r.state}
+                                </span>
+                                {r.cities.length > 0 ? (
+                                  <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded truncate max-w-48 font-medium">
+                                    {r.cities.join(", ")}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">
+                                    Estado Inteiro
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3.5 w-3.5 text-primary/75" />
+                                  {getCronDescription(r.cron)}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3.5 w-3.5" />
+                                  Última execução: {formattedDate(r.lastRun)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                              {/* Toggle Switch */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground font-medium">
+                                  {r.enabled ? "Ativo" : "Inativo"}
+                                </span>
+                                <button
+                                  onClick={() => handleToggleRoutine(r.id, r.enabled)}
+                                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
+                                    r.enabled ? "bg-primary" : "bg-muted"
+                                  }`}
+                                >
+                                  <div
+                                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                                      r.enabled ? "translate-x-4" : "translate-x-0"
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteRoutine(r.id)}
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8 rounded-lg"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Modal de Scraping */}
+      {/* Modal de Scraping Manual */}
       {showScrapeModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -1003,6 +1293,142 @@ function RadarPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Nova Rotina */}
+      {showRoutineModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleCreateRoutine}
+            className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+          >
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-lg">Agendar Rotina de Captura</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Programe varreduras automáticas recorrentes
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {/* Nome */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Nome da Rotina</label>
+                  <Input
+                    placeholder="Ex: Varredura Diária de Natal"
+                    value={routineName}
+                    onChange={(e) => setRoutineName(e.target.value)}
+                    required
+                    className="h-9 text-sm bg-input border-border"
+                  />
+                </div>
+
+                {/* Estado */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Estado Alvo</label>
+                  <select
+                    value={routineState}
+                    onChange={(e) => setRoutineState(e.target.value)}
+                    className="w-full h-9 px-2 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                  >
+                    {STATES.map((s) => (
+                      <option key={s.code} value={s.code.toLowerCase()}>
+                        {s.code} — {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Cidades */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground flex justify-between">
+                    <span>Cidades (opcional, vazia = estado inteiro)</span>
+                    <span className="text-[10px] text-muted-foreground/60 italic font-normal">Separadas por vírgula</span>
+                  </label>
+                  <Input
+                    placeholder="Ex: Natal, Mossoró"
+                    value={routineCities}
+                    onChange={(e) => setRoutineCities(e.target.value)}
+                    className="h-9 text-sm bg-input border-border"
+                  />
+                </div>
+
+                {/* Recorrência */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground">Recorrência</label>
+                    <select
+                      value={routineFrequency}
+                      onChange={(e) => setRoutineFrequency(e.target.value)}
+                      className="w-full h-9 px-2 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                    >
+                      <option value="hourly">De hora em hora</option>
+                      <option value="daily">Diário</option>
+                      <option value="weekly">Semanal</option>
+                    </select>
+                  </div>
+
+                  {routineFrequency !== "hourly" && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-muted-foreground">Horário</label>
+                      <Input
+                        type="time"
+                        value={routineHour}
+                        onChange={(e) => setRoutineHour(e.target.value)}
+                        required
+                        className="h-9 text-sm bg-input border-border"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {routineFrequency === "weekly" && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground">Dia da Semana</label>
+                    <select
+                      value={routineDayOfWeek}
+                      onChange={(e) => setRoutineDayOfWeek(e.target.value)}
+                      className="w-full h-9 px-2 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                    >
+                      <option value="1">Segunda-feira</option>
+                      <option value="2">Terça-feira</option>
+                      <option value="3">Quarta-feira</option>
+                      <option value="4">Quinta-feira</option>
+                      <option value="5">Sexta-feira</option>
+                      <option value="6">Sábado</option>
+                      <option value="0">Domingo</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowRoutineModal(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={savingRoutine}
+                  className="flex-1"
+                >
+                  {savingRoutine ? "Agendando..." : "Criar Agendamento"}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+        </div>
+      </div>
     </AppShell>
   );
 }
