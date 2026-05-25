@@ -601,10 +601,10 @@ export function fetchProspectStats() {
   return crmRequest<ProspectStats>("/prospects/stats");
 }
 
-export function triggerScrape(states: string[], cities: string[] = []) {
+export function triggerScrape(states: string[], cities: string[] = [], sources?: string[]) {
   return crmRequest<{ ok: boolean; message: string }>("/prospects/scrape", {
     method: "POST",
-    body: JSON.stringify({ states, cities }),
+    body: JSON.stringify({ states, cities, sources }),
   });
 }
 
@@ -629,6 +629,7 @@ export interface ProspectRoutine {
   enabled: boolean;
   lastRun: string | null;
   createdAt: string;
+  sources?: string[];
 }
 
 export function fetchRoutines() {
@@ -640,6 +641,7 @@ export function createRoutine(data: {
   state: string;
   cities: string[];
   cronExpr: string;
+  sources: string[];
 }) {
   return crmRequest<ProspectRoutine>("/prospects/routines", {
     method: "POST",

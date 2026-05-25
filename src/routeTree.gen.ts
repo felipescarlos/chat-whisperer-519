@@ -16,6 +16,7 @@ import { Route as DisparosRouteImport } from './routes/disparos'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ChipsRouteImport } from './routes/chips'
+import { Route as BancoDeDadosRouteImport } from './routes/banco-de-dados'
 import { Route as AgenteRouteImport } from './routes/agente'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -54,6 +55,11 @@ const ChipsRoute = ChipsRouteImport.update({
   path: '/chips',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BancoDeDadosRoute = BancoDeDadosRouteImport.update({
+  id: '/banco-de-dados',
+  path: '/banco-de-dados',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AgenteRoute = AgenteRouteImport.update({
   id: '/agente',
   path: '/agente',
@@ -68,6 +74,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agente': typeof AgenteRoute
+  '/banco-de-dados': typeof BancoDeDadosRoute
   '/chips': typeof ChipsRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agente': typeof AgenteRoute
+  '/banco-de-dados': typeof BancoDeDadosRoute
   '/chips': typeof ChipsRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agente': typeof AgenteRoute
+  '/banco-de-dados': typeof BancoDeDadosRoute
   '/chips': typeof ChipsRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agente'
+    | '/banco-de-dados'
     | '/chips'
     | '/configuracoes'
     | '/dashboard'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/agente'
+    | '/banco-de-dados'
     | '/chips'
     | '/configuracoes'
     | '/dashboard'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/agente'
+    | '/banco-de-dados'
     | '/chips'
     | '/configuracoes'
     | '/dashboard'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgenteRoute: typeof AgenteRoute
+  BancoDeDadosRoute: typeof BancoDeDadosRoute
   ChipsRoute: typeof ChipsRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   DashboardRoute: typeof DashboardRoute
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChipsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/banco-de-dados': {
+      id: '/banco-de-dados'
+      path: '/banco-de-dados'
+      fullPath: '/banco-de-dados'
+      preLoaderRoute: typeof BancoDeDadosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/agente': {
       id: '/agente'
       path: '/agente'
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgenteRoute: AgenteRoute,
+  BancoDeDadosRoute: BancoDeDadosRoute,
   ChipsRoute: ChipsRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
   DashboardRoute: DashboardRoute,

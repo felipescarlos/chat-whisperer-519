@@ -1,8 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Search, RefreshCw, Trash2, ChevronLeft, ChevronRight, ChevronDown,
-  Radio, Database, Wifi, Send, SlidersHorizontal, X, Check,
+  Radio, Database, Wifi, SlidersHorizontal, X, Check,
   Building2, Globe, Clock, Plus, Calendar,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  Prospect, ProspectStats, ScrapeJobState, ProspectRoutine,
-  fetchProspects, fetchProspectStats, fetchScrapeStatus,
+  ProspectStats, ScrapeJobState, ProspectRoutine,
+  fetchProspectStats, fetchScrapeStatus,
   triggerScrape, clearProspects, fetchRoutines, createRoutine,
   toggleRoutine, deleteRoutine,
 } from "@/lib/evolution-api";
@@ -19,18 +19,12 @@ import {
 export const Route = createFileRoute("/radar")({
   head: () => ({
     meta: [
-      { title: "Radar — CRM PicJob" },
-      { name: "description", content: "Mapeamento de leads dos portais concorrentes." },
+      { title: "Radar de Capturas — CRM PicJob" },
+      { name: "description", content: "Gerenciamento e automação de varredura de prospects." },
     ],
   }),
   component: RadarPage,
 });
-
-const SOURCES_LABELS: Record<string, string> = {
-  fatalmodel: "Fatal Model",
-  skokka: "Skokka",
-  fotoacomp: "PhotoAcomp",
-};
 
 const STATES = [
   { code: "RN", label: "Rio Grande do Norte" },
@@ -46,110 +40,6 @@ const STATES = [
   { code: "SC", label: "Santa Catarina" },
   { code: "RS", label: "Rio Grande do Sul" },
 ];
-
-function SourceBadge({ source }: { source: string }) {
-  const colors: Record<string, string> = {
-    fatalmodel: "bg-rose-500/20 text-rose-300 border-rose-500/30",
-    skokka: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-    fotoacomp: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-  };
-  return (
-    <span
-      className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${colors[source] || "bg-muted text-muted-foreground border-border"}`}
-    >
-      {SOURCES_LABELS[source] || source}
-    </span>
-  );
-}
-
-function ProspectCard({
-  prospect,
-  selected,
-  onToggle,
-}: {
-  prospect: Prospect;
-  selected: boolean;
-  onToggle: (p: Prospect) => void;
-}) {
-  const initials = prospect.name.slice(0, 2).toUpperCase();
-
-  return (
-    <div
-      onClick={() => onToggle(prospect)}
-      className={`group relative bg-card border rounded-xl overflow-hidden cursor-pointer transition-all duration-200 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 ${
-        selected
-          ? "border-primary ring-2 ring-primary/30 shadow-md shadow-primary/10"
-          : "border-border"
-      }`}
-    >
-      {/* Checkbox */}
-      <div
-        className={`absolute top-2 right-2 z-10 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
-          selected
-            ? "bg-primary border-primary"
-            : "bg-black/40 border-white/30 group-hover:border-white/60"
-        }`}
-      >
-        {selected && <Check className="h-3 w-3 text-white" />}
-      </div>
-
-      {/* Thumbnail */}
-      <div className="aspect-[4/5] bg-muted relative overflow-hidden">
-        {prospect.thumbUrl ? (
-          <img
-            src={prospect.thumbUrl}
-            alt={prospect.name}
-            className="w-full h-full object-cover"
-            loading="lazy"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-        ) : null}
-        {/* Fallback / gradient overlay */}
-        <div className="absolute inset-0 flex items-end">
-          <div className="w-full bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2">
-            {!prospect.thumbUrl && (
-              <span className="block text-center text-2xl font-bold text-white/40 mb-1">
-                {initials}
-              </span>
-            )}
-          </div>
-        </div>
-        {/* Multi-portal badge */}
-        {prospect.sources.length >= 2 && (
-          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[9px] font-bold px-1.5 py-0.5 rounded">
-            {prospect.sources.length}×
-          </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="p-3 space-y-2">
-        <p className="font-semibold text-sm truncate">{prospect.name}</p>
-        {prospect.city && (
-          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-            <Building2 className="h-3 w-3 shrink-0" />
-            <span className="truncate">{prospect.city}</span>
-          </p>
-        )}
-        {prospect.whatsappDisplay && (
-          <p className="text-[11px] text-emerald-400 font-mono">
-            {prospect.whatsappDisplay}
-          </p>
-        )}
-        {!prospect.whatsappDisplay && (
-          <p className="text-[11px] text-muted-foreground/50 italic">Sem WhatsApp</p>
-        )}
-        <div className="flex flex-wrap gap-1 pt-0.5">
-          {prospect.sources.map((s) => (
-            <SourceBadge key={s} source={s} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ScrapeStatusBanner({ jobState }: { jobState: ScrapeJobState | null }) {
   if (!jobState || jobState.status === "idle") return null;
@@ -168,7 +58,9 @@ function ScrapeStatusBanner({ jobState }: { jobState: ScrapeJobState | null }) {
         <RefreshCw className="h-4 w-4 animate-spin shrink-0" />
       )}
       <div className="flex-1 min-w-0">
-        <span className="font-medium capitalize">{jobState.status}</span>
+        <span className="font-medium capitalize">
+          {jobState.status === "running" ? "Executando" : jobState.status === "done" ? "Concluído" : "Erro"}
+        </span>
         {" — "}
         <span className="opacity-80">{jobState.message}</span>
         {jobState.status === "running" && (
@@ -221,17 +113,9 @@ function getCronDescription(cronStr: string): string {
 }
 
 function RadarPage() {
-  const navigate = useNavigate();
-
-  // Data
   const [stats, setStats] = useState<ProspectStats | null>(null);
-  const [items, setItems] = useState<Prospect[]>([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [jobState, setJobState] = useState<ScrapeJobState | null>(null);
-
-  // Tab control
-  const [activeTab, setActiveTab] = useState<"prospects" | "routines">("prospects");
 
   // Routines state
   const [routines, setRoutines] = useState<ProspectRoutine[]>([]);
@@ -245,22 +129,8 @@ function RadarPage() {
   const [routineFrequency, setRoutineFrequency] = useState("daily"); // "daily" | "weekly" | "hourly"
   const [routineHour, setRoutineHour] = useState("03:00");
   const [routineDayOfWeek, setRoutineDayOfWeek] = useState("1");
+  const [routinePlatforms, setRoutinePlatforms] = useState<string[]>(["fatalmodel", "skokka", "fotoacomp"]);
   const [savingRoutine, setSavingRoutine] = useState(false);
-
-  // Filters
-  const [search, setSearch] = useState("");
-  const [filterState, setFilterState] = useState("RN");
-  const [filterCity, setFilterCity] = useState("");
-  const [filterSource, setFilterSource] = useState("");
-  const [filterPhone, setFilterPhone] = useState(false);
-  const [page, setPage] = useState(1);
-  const LIMIT = 50;
-
-  // Tree UI state
-  const [expandedStates, setExpandedStates] = useState<Set<string>>(new Set(["RN"]));
-
-  // Selection
-  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // Scrape modal
   const [showScrapeModal, setShowScrapeModal] = useState(false);
@@ -268,37 +138,10 @@ function RadarPage() {
   const [scrapeMode, setScrapeMode] = useState<"state" | "city">("state");
   const [scrapeCitiesText, setScrapeCitiesText] = useState("");
   const [singleScrapeState, setSingleScrapeState] = useState("rn");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["fatalmodel", "skokka", "fotoacomp"]);
   const [scraping, setScraping] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Load prospects
-  const loadProspects = useCallback(
-    async (isBackground = false) => {
-      if (!isBackground) setLoading(true);
-      try {
-        const res = await fetchProspects({
-          state: filterState || undefined,
-          city: filterCity || undefined,
-          source: filterSource || undefined,
-          search: search.trim() || undefined,
-          page,
-          limit: LIMIT,
-          withPhone: filterPhone || undefined,
-        });
-        setItems(res.items);
-        setTotal(res.total);
-      } catch (e) {
-        if (!isBackground) {
-          console.error(e);
-          toast.error("Falha ao carregar prospects");
-        }
-      } finally {
-        if (!isBackground) setLoading(false);
-      }
-    },
-    [filterState, filterCity, filterSource, search, page, filterPhone]
-  );
 
   const loadStats = useCallback(async () => {
     try {
@@ -331,23 +174,21 @@ function RadarPage() {
         setScraping(false);
         if (state.status === "done") {
           toast.success(`Scraping concluído! ${state.counts.upserted} leads salvos.`);
-          loadProspects();
           loadStats();
         } else {
           toast.error(`Erro no scraping: ${state.error}`);
         }
+      } else if (state.status === "running") {
+        setScraping(true);
       }
     } catch {
       /* silencia */
     }
-  }, [loadProspects, loadStats]);
-
-  useEffect(() => {
-    loadProspects();
-  }, [loadProspects]);
+  }, [loadStats]);
 
   useEffect(() => {
     loadStats();
+    loadRoutines();
     checkJobStatus();
   }, []);
 
@@ -361,51 +202,12 @@ function RadarPage() {
     };
   }, [scraping, checkJobStatus]);
 
-  // Load routines when tab changes
-  useEffect(() => {
-    if (activeTab === "routines") {
-      loadRoutines();
-    }
-  }, [activeTab, loadRoutines]);
-
-  // Reset page on filter change
-  useEffect(() => {
-    setPage(1);
-  }, [filterState, filterCity, filterSource, search, filterPhone]);
-
   // Handlers
-  const handleToggle = (p: Prospect) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(p.id)) next.delete(p.id);
-      else next.add(p.id);
-      return next;
-    });
-  };
-
-  const handleSelectAll = () => {
-    if (selected.size === items.length && items.length > 0) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(items.map((p) => p.id)));
-    }
-  };
-
-  const handleSendToDisparos = () => {
-    const selectedItems = items.filter((p) => selected.has(p.id));
-    const withPhone = selectedItems.filter((p) => p.whatsappE164);
-    if (withPhone.length === 0) {
-      toast.error("Nenhum prospect selecionado tem WhatsApp");
+  const handleStartScrape = async () => {
+    if (selectedPlatforms.length === 0) {
+      toast.error("Por favor, selecione ao menos uma plataforma.");
       return;
     }
-    const numbers = withPhone.map((p) => p.whatsappE164!).join("\n");
-    // Salva no sessionStorage para a tela de Disparos carregar
-    sessionStorage.setItem("radar_numbers", numbers);
-    toast.success(`${withPhone.length} números enviados para Disparos`);
-    navigate({ to: "/disparos" });
-  };
-
-  const handleStartScrape = async () => {
     setScraping(true);
     setShowScrapeModal(false);
     try {
@@ -414,9 +216,9 @@ function RadarPage() {
           .split(",")
           .map((c) => c.trim())
           .filter((c) => c.length > 0);
-        await triggerScrape([singleScrapeState], parsedCities);
+        await triggerScrape([singleScrapeState], parsedCities, selectedPlatforms);
       } else {
-        await triggerScrape(scrapeStates, []);
+        await triggerScrape(scrapeStates, [], selectedPlatforms);
       }
       // Inicia polling
       pollRef.current = setInterval(checkJobStatus, 3000);
@@ -431,6 +233,10 @@ function RadarPage() {
     e.preventDefault();
     if (!routineName.trim()) {
       toast.error("Por favor, digite um nome para a rotina");
+      return;
+    }
+    if (routinePlatforms.length === 0) {
+      toast.error("Por favor, selecione ao menos uma plataforma.");
       return;
     }
 
@@ -456,6 +262,7 @@ function RadarPage() {
         state: routineState,
         cities: citiesArr,
         cronExpr,
+        sources: routinePlatforms,
       });
 
       toast.success("Rotina agendada com sucesso!");
@@ -467,6 +274,7 @@ function RadarPage() {
       setRoutineFrequency("daily");
       setRoutineHour("03:00");
       setRoutineDayOfWeek("1");
+      setRoutinePlatforms(["fatalmodel", "skokka", "fotoacomp"]);
 
       loadRoutines();
     } catch (err: any) {
@@ -502,51 +310,11 @@ function RadarPage() {
     try {
       const res = await clearProspects();
       toast.success(`${res.deleted} prospects removidos`);
-      loadProspects();
       loadStats();
     } catch {
       toast.error("Falha ao limpar prospects");
     }
   };
-
-  const toggleStateExpanded = (stateCode: string) => {
-    setExpandedStates((prev) => {
-      const next = new Set(prev);
-      if (next.has(stateCode)) next.delete(stateCode);
-      else next.add(stateCode);
-      return next;
-    });
-  };
-
-  const totalPages = Math.ceil(total / LIMIT);
-  const selectedItems = items.filter((p) => selected.has(p.id));
-  const selectedWithPhone = selectedItems.filter((p) => p.whatsappE164);
-
-  // Group stats for the sidebar tree
-  const groupedStats = stats?.byStateCity?.reduce((acc, curr) => {
-    const state = curr.state || "N/A";
-    if (!acc[state]) {
-      acc[state] = {
-        total: 0,
-        cities: [] as { city: string; count: number }[],
-      };
-    }
-    acc[state].total += curr.count;
-    if (curr.city) {
-      acc[state].cities.push({ city: curr.city, count: curr.count });
-    }
-    return acc;
-  }, {} as Record<string, { total: number; cities: { city: string; count: number }[] }>);
-
-  // Sort states by count descending, and cities descending
-  const sortedGroupedStats = groupedStats
-    ? Object.entries(groupedStats)
-        .sort((a, b) => b[1].total - a[1].total)
-        .map(([stateCode, data]) => {
-          const sortedCities = [...data.cities].sort((a, b) => b.count - a.count);
-          return [stateCode, { ...data, cities: sortedCities }] as const;
-        })
-    : [];
 
   return (
     <AppShell>
@@ -557,10 +325,10 @@ function RadarPage() {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Radio className="h-5 w-5 text-primary" />
-                <h1 className="text-2xl font-bold">Radar de Prospects</h1>
+                <h1 className="text-2xl font-bold">Radar de Capturas</h1>
               </div>
               <p className="text-sm text-muted-foreground">
-                Leads captados dos portais concorrentes — use como lista nos Disparos
+                Automatize e gerencie o mapeamento de leads dos portais concorrentes
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -569,10 +337,10 @@ function RadarPage() {
                 size="sm"
                 onClick={() => setShowScrapeModal(true)}
                 disabled={scraping}
-                className="gap-2"
+                className="gap-2 border-primary/20 hover:border-primary/50"
               >
                 {scraping ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <RefreshCw className="h-4 w-4 animate-spin text-primary" />
                 ) : (
                   <Globe className="h-4 w-4" />
                 )}
@@ -582,10 +350,10 @@ function RadarPage() {
                 variant="ghost"
                 size="sm"
                 onClick={handleClear}
-                className="gap-2 text-destructive hover:text-destructive"
+                className="gap-2 text-destructive hover:text-destructive/80"
               >
                 <Trash2 className="h-4 w-4" />
-                Limpar
+                Limpar Banco
               </Button>
             </div>
           </div>
@@ -593,561 +361,163 @@ function RadarPage() {
           {/* Status banner */}
           <ScrapeStatusBanner jobState={jobState} />
 
-          {/* Stats */}
+          {/* Stats Summary */}
           {stats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Total de Leads", value: stats.total, icon: Database },
-                { label: "Com WhatsApp", value: stats.withPhone, icon: Wifi, accent: true },
-                { label: "Em 2+ Portais", value: stats.multiPortal, icon: Globe },
-                {
-                  label: "Sem WhatsApp",
-                  value: stats.total - stats.withPhone,
-                  icon: Database,
-                },
+                { label: "Total Mapeado", value: stats.total, icon: Database, color: "text-blue-400" },
+                { label: "Fatal Model", value: stats.bySource.fatalmodel, icon: Globe, color: "text-rose-400" },
+                { label: "Skokka", value: stats.bySource.skokka, icon: Globe, color: "text-orange-400" },
+                { label: "PhotoAcomp", value: stats.bySource.fotoacomp, icon: Globe, color: "text-violet-400" },
               ].map((s) => (
                 <div
                   key={s.label}
-                  className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1"
+                  className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 shadow-sm"
                 >
-                  <s.icon
-                    className={`h-4 w-4 ${s.accent ? "text-emerald-400" : "text-muted-foreground"}`}
-                  />
-                  <span
-                    className={`text-3xl font-bold tracking-tight ${s.accent ? "text-emerald-400" : ""}`}
-                  >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{s.label}</span>
+                    <s.icon className={`h-4 w-4 ${s.color}`} />
+                  </div>
+                  <span className="text-2xl font-bold tracking-tight mt-1">
                     {s.value.toLocaleString("pt-BR")}
                   </span>
-                  <span className="text-xs text-muted-foreground">{s.label}</span>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Por portal */}
-          {stats && (
-            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-              <span>
-                Fontes:{" "}
-                <strong className="text-rose-400">
-                  {stats.bySource.fatalmodel} Fatal Model
-                </strong>{" "}
-                ·{" "}
-                <strong className="text-orange-400">
-                  {stats.bySource.skokka} Skokka
-                </strong>{" "}
-                ·{" "}
-                <strong className="text-violet-400">
-                  {stats.bySource.fotoacomp} PhotoAcomp
-                </strong>
-              </span>
-            </div>
-          )}
-
-          {/* Tab Switcher */}
-          <div className="flex border-b border-border gap-2">
-            <button
-              onClick={() => setActiveTab("prospects")}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
-                activeTab === "prospects"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Prospects Capturados
-            </button>
-            <button
-              onClick={() => setActiveTab("routines")}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
-                activeTab === "routines"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Rotinas Agendadas
-            </button>
-          </div>
-
-          {/* Layout Split: Tree Sidebar + Main Content */}
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
-            {/* Left Sidebar Tree */}
-            <div className="w-full lg:w-64 shrink-0 bg-card border border-border rounded-xl p-4 space-y-4 shadow-sm">
+          {/* Routines Section */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-card border border-border p-4 rounded-xl shadow-sm">
               <div>
-                <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider mb-3">
-                  Localização
-                </h3>
-                <div className="space-y-1">
-                  {/* Todos os Leads button */}
-                  <button
-                    onClick={() => {
-                      setFilterState("");
-                      setFilterCity("");
-                      if (activeTab !== "prospects") setActiveTab("prospects");
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      !filterState && !filterCity
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 shrink-0" />
-                      <span>Todos os Leads</span>
-                    </div>
-                    <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full font-mono font-semibold">
-                      {stats?.total || 0}
-                    </span>
-                  </button>
+                <h3 className="font-semibold text-sm">Agendamentos Recorrentes</h3>
+                <p className="text-xs text-muted-foreground">
+                  Configure rotinas automáticas de scraping por estado ou cidade
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setShowRoutineModal(true)}
+                className="gap-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                Agendar Rotina
+              </Button>
+            </div>
 
-                  <div className="pt-2 space-y-1 border-t border-border/50 mt-2">
-                    {sortedGroupedStats.map(([stateCode, data]) => {
-                      const isExpanded = expandedStates.has(stateCode);
-                      const isSelected = filterState === stateCode && !filterCity;
-                      const stateLabel =
-                        STATES.find((s) => s.code === stateCode)?.label || stateCode;
+            {loadingRoutines ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-24 bg-card border border-border rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ) : routines.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl bg-card/20">
+                <Clock className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <p className="font-medium">Nenhuma rotina agendada ainda</p>
+                <p className="text-sm mt-1 mb-4 max-w-md mx-auto">
+                  Automatize a busca de novos prospects programando varreduras diárias ou semanais por cidade.
+                </p>
+                <Button size="sm" onClick={() => setShowRoutineModal(true)} className="gap-1.5">
+                  <Plus className="h-4 w-4" />
+                  Agendar Primeira Rotina
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {routines.map((r) => {
+                  const formattedDate = (dStr: string | null) => {
+                    if (!dStr) return "Nunca executado";
+                    return new Date(dStr).toLocaleString("pt-BR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                  };
 
-                      return (
-                        <div key={stateCode} className="space-y-0.5">
-                          <div className="flex items-center w-full group gap-0.5">
-                            <button
-                              onClick={() => toggleStateExpanded(stateCode)}
-                              className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="h-3.5 w-3.5" />
-                              ) : (
-                                <ChevronRight className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                setFilterState(stateCode);
-                                setFilterCity("");
-                                if (activeTab !== "prospects") setActiveTab("prospects");
-                              }}
-                              className={`flex-1 flex items-center justify-between px-2.5 py-1 rounded-md text-sm font-medium text-left transition-colors truncate ${
-                                isSelected
-                                  ? "bg-primary/10 text-primary font-semibold"
-                                  : "text-foreground hover:bg-accent/60"
-                              }`}
-                            >
-                              <span className="truncate" title={`${stateCode} — ${stateLabel}`}>
-                                {stateCode} — {stateLabel}
-                              </span>
-                              <span className="text-[10px] bg-muted px-1.5 py-0.25 rounded-full font-mono shrink-0 ml-1">
-                                {data.total}
-                              </span>
-                            </button>
-                          </div>
-
-                          {isExpanded && (
-                            <div className="pl-5 space-y-0.5 border-l border-border/50 ml-3.5 mt-0.5">
-                              {data.cities.length === 0 ? (
-                                <span className="block px-2.5 py-1 text-xs text-muted-foreground/60 italic">
-                                  Sem cidades
+                  return (
+                    <div
+                      key={r.id}
+                      className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow hover:border-primary/30 transition-all duration-200"
+                    >
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-sm truncate">{r.name}</h4>
+                          <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono font-bold uppercase shrink-0">
+                            {r.state}
+                          </span>
+                          {r.cities.length > 0 ? (
+                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded truncate max-w-48 font-medium">
+                              {r.cities.join(", ")}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">
+                              Estado Inteiro
+                            </span>
+                          )}
+                          
+                          {/* Platform tags */}
+                          {r.sources && r.sources.length > 0 && (
+                            <div className="flex gap-1 shrink-0">
+                              {r.sources.map((src) => (
+                                <span key={src} className="text-[9px] bg-muted/80 text-muted-foreground border border-border/50 px-1 py-0.25 rounded font-mono font-bold uppercase">
+                                  {src === "fatalmodel" ? "FM" : src === "skokka" ? "SK" : "PA"}
                                 </span>
-                              ) : (
-                                data.cities.map(({ city, count }) => {
-                                  const isCitySelected =
-                                    filterState === stateCode && filterCity === city;
-                                  return (
-                                    <button
-                                      key={city}
-                                      onClick={() => {
-                                        setFilterState(stateCode);
-                                        setFilterCity(city);
-                                        if (activeTab !== "prospects") setActiveTab("prospects");
-                                      }}
-                                      className={`w-full flex items-center justify-between px-2.5 py-1 rounded-md text-xs font-medium text-left transition-colors truncate ${
-                                        isCitySelected
-                                          ? "bg-primary/10 text-primary font-semibold"
-                                          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-                                      }`}
-                                    >
-                                      <span className="truncate" title={city}>
-                                        {city}
-                                      </span>
-                                      <span className="text-[9px] opacity-75 font-mono shrink-0 ml-1">
-                                        {count}
-                                      </span>
-                                    </button>
-                                  );
-                                })
-                              )}
+                              ))}
                             </div>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Main Content Area */}
-            <div className="flex-1 w-full space-y-6">
-              {activeTab === "prospects" ? (
-                <>
-                  {/* Toolbar: filtros + seleção */}
-                  <div className="flex flex-wrap gap-2 items-center">
-                    {/* Busca */}
-                    <div className="relative flex-1 min-w-48 max-w-72">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar por nome..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-9 bg-input border-border h-9 text-sm"
-                      />
-                      {search && (
-                        <button
-                          onClick={() => setSearch("")}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* State sync dropdown (mostly for visual/manual fallback) */}
-                    <select
-                      value={filterState}
-                      onChange={(e) => {
-                        setFilterState(e.target.value);
-                        setFilterCity("");
-                      }}
-                      className="h-9 px-2 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
-                    >
-                      <option value="">Todos os estados</option>
-                      {STATES.map((s) => (
-                        <option key={s.code} value={s.code}>
-                          {s.code} — {s.label}
-                        </option>
-                      ))}
-                    </select>
-
-                    {/* Fonte */}
-                    <select
-                      value={filterSource}
-                      onChange={(e) => setFilterSource(e.target.value)}
-                      className="h-9 px-2 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
-                    >
-                      <option value="">Todos os portais</option>
-                      <option value="fatalmodel">Fatal Model</option>
-                      <option value="skokka">Skokka</option>
-                      <option value="fotoacomp">PhotoAcomp</option>
-                    </select>
-
-                    {/* Filtro WhatsApp */}
-                    <button
-                      onClick={() => setFilterPhone((v) => !v)}
-                      className={`h-9 px-3 text-sm rounded-md border transition-colors flex items-center gap-1.5 ${
-                        filterPhone
-                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
-                          : "bg-input border-border text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Wifi className="h-3.5 w-3.5" />
-                      Com WhatsApp
-                    </button>
-
-                    <div className="ml-auto flex items-center gap-2">
-                      {/* Seleção */}
-                      {items.length > 0 && (
-                        <button
-                          onClick={handleSelectAll}
-                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {selected.size === items.length
-                            ? "Desselecionar todos"
-                            : `Selecionar ${items.length}`}
-                        </button>
-                      )}
-
-                      {/* Enviar para Disparos */}
-                      {selected.size > 0 && (
-                        <Button
-                          size="sm"
-                          onClick={handleSendToDisparos}
-                          className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-                        >
-                          <Send className="h-3.5 w-3.5" />
-                          Usar em Disparos ({selectedWithPhone.length} com WhatsApp)
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Active Filter Badges */}
-                  {(filterState || filterCity || filterSource || filterPhone || search) && (
-                    <div className="flex flex-wrap gap-1.5 items-center bg-muted/20 border border-border/50 p-2 rounded-lg">
-                      <span className="text-xs text-muted-foreground mr-1">Filtros ativos:</span>
-                      {filterState && (
-                        <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                          Estado: {filterState}
-                          <button
-                            onClick={() => {
-                              setFilterState("");
-                              setFilterCity("");
-                            }}
-                            className="hover:text-foreground font-bold"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      )}
-                      {filterCity && (
-                        <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                          Cidade: {filterCity}
-                          <button
-                            onClick={() => setFilterCity("")}
-                            className="hover:text-foreground font-bold"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      )}
-                      {filterSource && (
-                        <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                          Portal: {SOURCES_LABELS[filterSource] || filterSource}
-                          <button onClick={() => setFilterSource("")} className="hover:text-foreground font-bold">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      )}
-                      {filterPhone && (
-                        <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          Com WhatsApp
-                          <button onClick={() => setFilterPhone(false)} className="hover:text-foreground font-bold">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      )}
-                      {search && (
-                        <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                          Busca: "{search}"
-                          <button onClick={() => setSearch("")} className="hover:text-foreground font-bold">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      )}
-                      <button
-                        onClick={() => {
-                          setFilterState("");
-                          setFilterCity("");
-                          setFilterSource("");
-                          setFilterPhone(false);
-                          setSearch("");
-                        }}
-                        className="text-xs text-muted-foreground hover:text-foreground underline ml-auto pl-2"
-                      >
-                        Limpar tudo
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Contagem */}
-                  <div className="text-xs text-muted-foreground flex justify-between items-center">
-                    <span>
-                      {total.toLocaleString("pt-BR")} prospects encontrados
-                      {selected.size > 0 && (
-                        <span className="text-primary ml-2 font-medium">
-                          · {selected.size} selecionados
-                        </span>
-                      )}
-                    </span>
-                    {filterCity && (
-                      <span className="font-semibold text-primary">
-                        Mostrando resultados para {filterCity} — {filterState}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Grid de cards */}
-                  {loading ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                      {Array.from({ length: 12 }).map((_, i) => (
-                        <div key={i} className="bg-card border border-border rounded-xl overflow-hidden animate-pulse">
-                          <div className="aspect-[4/5] bg-muted" />
-                          <div className="p-3 space-y-2">
-                            <div className="h-3 bg-muted rounded w-3/4" />
-                            <div className="h-2.5 bg-muted rounded w-1/2" />
-                          </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5 text-primary/75" />
+                            {getCronDescription(r.cron)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5" />
+                            Última execução: {formattedDate(r.lastRun)}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  ) : items.length === 0 ? (
-                    <div className="text-center py-20 text-muted-foreground border border-dashed border-border rounded-xl">
-                      <Radio className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                      <p className="font-medium">Nenhum prospect encontrado</p>
-                      <p className="text-sm mt-1">
-                        {total === 0
-                          ? 'Clique em "Atualizar Radar" para raspar os portais'
-                          : "Tente ajustar os filtros"}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                      {items.map((p) => (
-                        <ProspectCard
-                          key={p.id}
-                          prospect={p}
-                          selected={selected.has(p.id)}
-                          onToggle={handleToggle}
-                        />
-                      ))}
-                    </div>
-                  )}
+                      </div>
 
-                  {/* Paginação */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-3 pt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={page <= 1}
-                        onClick={() => setPage((p) => p - 1)}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Página {page} de {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={page >= totalPages}
-                        onClick={() => setPage((p) => p + 1)}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  {/* Routines View */}
-                  <div className="flex justify-between items-center bg-muted/10 border border-border/60 p-4 rounded-xl">
-                    <div>
-                      <h3 className="font-semibold text-sm">Agendamentos Recorrentes</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Configure rotinas recorrentes de scraping por estado ou cidade
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => setShowRoutineModal(true)}
-                      className="gap-1.5"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Agendar Rotina
-                    </Button>
-                  </div>
-
-                  {loadingRoutines ? (
-                    <div className="space-y-3">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="h-24 bg-card border border-border rounded-xl animate-pulse" />
-                      ))}
-                    </div>
-                  ) : routines.length === 0 ? (
-                    <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
-                      <Clock className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                      <p className="font-medium">Nenhuma rotina agendada ainda</p>
-                      <p className="text-sm mt-1 mb-4 max-w-md mx-auto">
-                        Automatize a busca de novos prospects programando varreduras diárias ou semanais por cidade.
-                      </p>
-                      <Button size="sm" onClick={() => setShowRoutineModal(true)} className="gap-1.5">
-                        <Plus className="h-4 w-4" />
-                        Agendar Primeira Rotina
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {routines.map((r) => {
-                        const formattedDate = (dStr: string | null) => {
-                          if (!dStr) return "Nunca executado";
-                          return new Date(dStr).toLocaleString("pt-BR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          });
-                        };
-
-                        return (
-                          <div
-                            key={r.id}
-                            className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow hover:border-primary/30 transition-all duration-200"
+                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                        {/* Toggle Switch */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground font-medium">
+                            {r.enabled ? "Ativo" : "Inativo"}
+                          </span>
+                          <button
+                            onClick={() => handleToggleRoutine(r.id, r.enabled)}
+                            className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
+                              r.enabled ? "bg-primary" : "bg-muted"
+                            }`}
                           >
-                            <div className="space-y-1.5 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="font-semibold text-sm truncate">{r.name}</h4>
-                                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono font-bold uppercase shrink-0">
-                                  {r.state}
-                                </span>
-                                {r.cities.length > 0 ? (
-                                  <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded truncate max-w-48 font-medium">
-                                    {r.cities.join(", ")}
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">
-                                    Estado Inteiro
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3.5 w-3.5 text-primary/75" />
-                                  {getCronDescription(r.cron)}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3.5 w-3.5" />
-                                  Última execução: {formattedDate(r.lastRun)}
-                                </span>
-                              </div>
-                            </div>
+                            <div
+                              className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                                r.enabled ? "translate-x-4" : "translate-x-0"
+                              }`}
+                            />
+                          </button>
+                        </div>
 
-                            <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                              {/* Toggle Switch */}
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground font-medium">
-                                  {r.enabled ? "Ativo" : "Inativo"}
-                                </span>
-                                <button
-                                  onClick={() => handleToggleRoutine(r.id, r.enabled)}
-                                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
-                                    r.enabled ? "bg-primary" : "bg-muted"
-                                  }`}
-                                >
-                                  <div
-                                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-                                      r.enabled ? "translate-x-4" : "translate-x-0"
-                                    }`}
-                                  />
-                                </button>
-                              </div>
-
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteRoutine(r.id)}
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8 rounded-lg"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteRoutine(r.id)}
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8 rounded-lg"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
+        </div>
+      </div>
 
       {/* Modal de Scraping Manual */}
       {showScrapeModal && (
@@ -1161,7 +531,7 @@ function RadarPage() {
                 <div>
                   <h2 className="font-semibold text-lg">Atualizar Radar</h2>
                   <p className="text-xs text-muted-foreground">
-                    Escolha o modo de captura de prospects
+                    Escolha as localizações para captura manual
                   </p>
                 </div>
               </div>
@@ -1266,10 +636,50 @@ function RadarPage() {
                 </div>
               )}
 
+              {/* Portais/Plataformas */}
+              <div className="space-y-2 border-t border-border/50 pt-3">
+                <label className="text-xs font-semibold text-muted-foreground block">Portais para Capturar</label>
+                <div className="flex flex-col gap-2">
+                  {[
+                    { id: "fatalmodel", label: "Fatal Model" },
+                    { id: "skokka", label: "Skokka" },
+                    { id: "fotoacomp", label: "Photo Acompanhantes" },
+                  ].map((platform) => {
+                    const checked = selectedPlatforms.includes(platform.id);
+                    return (
+                      <label
+                        key={platform.id}
+                        className="flex items-center gap-3 py-1 cursor-pointer transition-colors"
+                      >
+                        <div
+                          className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors ${
+                            checked ? "bg-primary border-primary" : "border-border"
+                          }`}
+                        >
+                          {checked && <Check className="h-2.5 w-2.5 text-white" />}
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPlatforms((prev) => [...prev, platform.id]);
+                            } else {
+                              setSelectedPlatforms((prev) => prev.filter((p) => p !== platform.id));
+                            }
+                          }}
+                        />
+                        <span className="text-xs font-medium">{platform.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="p-3 bg-muted/30 rounded-lg text-[11px] text-muted-foreground space-y-1">
                 <p>⏱ Tempo estimado: ~5–15 min por estado/cidade</p>
                 <p>🔄 Roda em background (pode fechar esta janela)</p>
-                <p>📊 Portais: Fatal Model, Skokka (cidades específicas) e PhotoAcomp</p>
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -1282,7 +692,10 @@ function RadarPage() {
                 </Button>
                 <Button
                   className="flex-1 gap-2"
-                  disabled={scrapeMode === "state" ? scrapeStates.length === 0 : !scrapeCitiesText.trim()}
+                  disabled={
+                    (scrapeMode === "state" ? scrapeStates.length === 0 : !scrapeCitiesText.trim()) ||
+                    selectedPlatforms.length === 0
+                  }
                   onClick={handleStartScrape}
                 >
                   <Globe className="h-4 w-4" />
@@ -1404,6 +817,47 @@ function RadarPage() {
                     </select>
                   </div>
                 )}
+
+                {/* Portais/Plataformas */}
+                <div className="space-y-2 border-t border-border/50 pt-3">
+                  <label className="text-xs font-semibold text-muted-foreground block">Portais para Capturar</label>
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { id: "fatalmodel", label: "Fatal Model" },
+                      { id: "skokka", label: "Skokka" },
+                      { id: "fotoacomp", label: "Photo Acompanhantes" },
+                    ].map((platform) => {
+                      const checked = routinePlatforms.includes(platform.id);
+                      return (
+                        <label
+                          key={platform.id}
+                          className="flex items-center gap-3 py-1 cursor-pointer transition-colors"
+                        >
+                          <div
+                            className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors ${
+                              checked ? "bg-primary border-primary" : "border-border"
+                            }`}
+                          >
+                            {checked && <Check className="h-2.5 w-2.5 text-white" />}
+                          </div>
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setRoutinePlatforms((prev) => [...prev, platform.id]);
+                              } else {
+                                setRoutinePlatforms((prev) => prev.filter((p) => p !== platform.id));
+                              }
+                            }}
+                          />
+                          <span className="text-xs font-medium">{platform.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -1417,7 +871,7 @@ function RadarPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={savingRoutine}
+                  disabled={savingRoutine || routinePlatforms.length === 0}
                   className="flex-1"
                 >
                   {savingRoutine ? "Agendando..." : "Criar Agendamento"}
@@ -1427,8 +881,6 @@ function RadarPage() {
           </form>
         </div>
       )}
-        </div>
-      </div>
     </AppShell>
   );
 }
