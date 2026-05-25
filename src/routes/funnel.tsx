@@ -45,8 +45,10 @@ import {
   createCRMStage,
   updateCRMStage,
   deleteCRMStage,
-  formatPhoneNumber
+  formatPhoneNumber,
+  getMessageText
 } from "@/lib/evolution-api";
+
 
 export const Route = createFileRoute("/funnel")({
   head: () => ({
