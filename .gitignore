@@ -33,3 +33,6 @@ dist-ssr
 
 # Local npm cache
 .npm-cache/
+
+# Scratch files
+scratch/

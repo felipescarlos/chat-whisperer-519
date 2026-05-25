@@ -565,6 +565,7 @@ export interface ProspectStats {
   bySource: { fatalmodel: number; skokka: number; fotoacomp: number };
   multiPortal: number;
   byState: { state: string; count: number }[];
+  byStateCity?: { state: string; city: string; count: number }[];
 }
 
 export interface ScrapeJobState {
@@ -600,10 +601,10 @@ export function fetchProspectStats() {
   return crmRequest<ProspectStats>("/prospects/stats");
 }
 
-export function triggerScrape(states: string[]) {
+export function triggerScrape(states: string[], cities: string[] = []) {
   return crmRequest<{ ok: boolean; message: string }>("/prospects/scrape", {
     method: "POST",
-    body: JSON.stringify({ states }),
+    body: JSON.stringify({ states, cities }),
   });
 }
 
