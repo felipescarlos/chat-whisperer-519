@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Folder, FolderOpen, ChevronRight, Download, Search,
+  Folder, FolderOpen, ChevronRight, Search,
   Database, Wifi, Building2, Globe, ArrowLeft, Home, FileSpreadsheet,
-  Check
+  RefreshCw, MessageCircle, MapPin
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Prospect, ProspectStats,
-  fetchProspects, fetchProspectStats
+  fetchProspects, fetchProspectStats,
+  triggerScrape, fetchScrapeStatus,
 } from "@/lib/evolution-api";
 
 export const Route = createFileRoute("/banco-de-dados")({
@@ -135,6 +136,65 @@ function BancoDeDadosPage() {
     setPage(1);
     loadProspects();
   };
+
+  // Refresh state for city folders
+  const [refreshingCity, setRefreshingCity] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const handleRefreshCity = useCallback(async (city: string, stateCode: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // não navega para a cidade ao clicar no botão
+    if (refreshingCity) return;
+    setRefreshingCity(city);
+
+    try {
+      // Conta quantos existem ANTES do scrape
+      const before = await fetchProspects({ state: stateCode, city, limit: 1 });
+      const beforeCount = before.total;
+
+      // Normaliza o nome da cidade para o scraper (minúsculo, sem acento)
+      const citySlug = city.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-");
+
+      await triggerScrape([stateCode.toLowerCase()], [citySlug], ["fatalmodel", "skokka", "photoacomp"]);
+
+      // Aguarda o job terminar (polling a cada 5s)
+      await new Promise<void>((resolve) => {
+        pollRef.current = setInterval(async () => {
+          try {
+            const status = await fetchScrapeStatus();
+            if (status.status !== "running") {
+              clearInterval(pollRef.current!);
+              resolve();
+            }
+          } catch {
+            clearInterval(pollRef.current!);
+            resolve();
+          }
+        }, 5000);
+      });
+
+      // Conta quantos existem DEPOIS
+      const after = await fetchProspects({ state: stateCode, city, limit: 1 });
+      const afterCount = after.total;
+      const newLeads = afterCount - beforeCount;
+      const alreadyInDB = afterCount - newLeads;
+
+      const status = await fetchScrapeStatus();
+      const found = status.counts?.total ?? afterCount;
+
+      toast.success(
+        `${city}: ${found} encontrados — ${newLeads} novos, ${alreadyInDB} já estavam no banco.`,
+        { duration: 8000 }
+      );
+
+      loadStats();
+      if (filterCity === city) loadProspects();
+    } catch (err) {
+      console.error(err);
+      toast.error(`Erro ao atualizar ${city}`);
+    } finally {
+      setRefreshingCity(null);
+    }
+  }, [refreshingCity, filterCity, loadStats, loadProspects]);
 
   // Group stats for folder view
   const groupedStats = stats?.byStateCity?.reduce((acc, curr) => {
@@ -352,25 +412,39 @@ function BancoDeDadosPage() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {currentStateData?.cities.map(({ city, count }) => (
-                  <button
-                    key={city}
-                    onClick={() => setFilterCity(city)}
-                    className="group flex flex-col items-center justify-center p-5 bg-card/40 hover:bg-card border border-border hover:border-emerald-500/40 rounded-2xl transition-all duration-200 shadow-sm relative overflow-hidden active:scale-95"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                      <Folder className="h-6 w-6 text-emerald-400 group-hover:hidden" />
-                      <FolderOpen className="h-6 w-6 text-emerald-400 hidden group-hover:block" />
+                {currentStateData?.cities.map(({ city, count }) => {
+                  const isRefreshing = refreshingCity === city;
+                  return (
+                    <div
+                      key={city}
+                      className="group relative flex flex-col items-center justify-center p-5 bg-card/40 hover:bg-card border border-border hover:border-emerald-500/40 rounded-2xl transition-all duration-200 shadow-sm overflow-hidden cursor-pointer active:scale-95"
+                      onClick={() => setFilterCity(city)}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                      {/* Botão de atualizar — canto superior direito */}
+                      <button
+                        onClick={(e) => handleRefreshCity(city, filterState, e)}
+                        disabled={!!refreshingCity}
+                        title={`Atualizar ${city}`}
+                        className="absolute top-2 right-2 z-10 p-1 rounded-lg bg-muted/50 hover:bg-emerald-500/20 text-muted-foreground hover:text-emerald-400 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-30"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+                      </button>
+
+                      <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                        <Folder className="h-6 w-6 text-emerald-400 group-hover:hidden" />
+                        <FolderOpen className="h-6 w-6 text-emerald-400 hidden group-hover:block" />
+                      </div>
+                      <span className="font-bold text-base text-foreground group-hover:text-emerald-400 transition-colors text-center line-clamp-1 max-w-full px-1">
+                        {city}
+                      </span>
+                      <span className="text-[11px] font-mono bg-muted/60 border border-border px-2 py-0.5 rounded-full mt-3 text-muted-foreground">
+                        {isRefreshing ? "Atualizando..." : `${count} leads`}
+                      </span>
                     </div>
-                    <span className="font-bold text-base text-foreground group-hover:text-emerald-400 transition-colors text-center line-clamp-1 max-w-full px-1">
-                      {city}
-                    </span>
-                    <span className="text-[11px] font-mono bg-muted/60 border border-border px-2 py-0.5 rounded-full mt-3 text-muted-foreground">
-                      {count} leads
-                    </span>
-                  </button>
-                ))}
+                  );
+                })}
 
                 {(!currentStateData || currentStateData.cities.length === 0) && (
                   <div className="col-span-full py-12 text-center text-muted-foreground bg-card/25 border border-dashed border-border rounded-xl">
@@ -447,10 +521,12 @@ function BancoDeDadosPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4">
                     {items.map((prospect) => {
                       const initials = prospect.name.slice(0, 2).toUpperCase();
+                      const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
+                      const waUrl = phone ? `https://wa.me/${phone}` : null;
                       return (
                         <div
                           key={prospect.id}
-                          className="group relative bg-card border border-border rounded-xl overflow-hidden shadow-sm transition-all duration-200 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5"
+                          className="group relative bg-card border border-border rounded-xl overflow-hidden shadow-sm transition-all duration-200 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5"
                         >
                           {/* Thumbnail */}
                           <div className="aspect-[4/5] bg-muted relative overflow-hidden">
@@ -465,7 +541,7 @@ function BancoDeDadosPage() {
                                 }}
                               />
                             ) : null}
-                            {/* Fallback / gradient overlay */}
+                            {/* Gradient overlay */}
                             <div className="absolute inset-0 flex items-end">
                               <div className="w-full bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2">
                                 {!prospect.thumbUrl && (
@@ -477,23 +553,43 @@ function BancoDeDadosPage() {
                             </div>
                             {/* Multi-portal badge */}
                             {prospect.sources.length >= 2 && (
-                              <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[8px] font-bold px-1 py-0.25 rounded">
+                              <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[8px] font-bold px-1 rounded">
                                 {prospect.sources.length}×
                               </div>
+                            )}
+                            {/* Botão WhatsApp — aparece no hover, canto inferior direito */}
+                            {waUrl && (
+                              <a
+                                href={waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                title={`Convidar ${prospect.name} pelo WhatsApp`}
+                                className="absolute bottom-2 right-2 z-10 w-7 h-7 rounded-full bg-[#25D366] flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 hover:bg-[#1ebe5d]"
+                              >
+                                <MessageCircle className="h-3.5 w-3.5 text-white" />
+                              </a>
                             )}
                           </div>
 
                           {/* Info */}
-                          <div className="p-2.5 space-y-1.5">
+                          <div className="p-2.5 space-y-1">
                             <p className="font-semibold text-xs truncate" title={prospect.name}>
                               {prospect.name}
                             </p>
-                            {prospect.whatsappE164 || prospect.whatsappDisplay ? (
+                            {phone ? (
                               <p className="text-[10px] text-emerald-400 font-mono font-medium truncate">
-                                {prospect.whatsappDisplay || prospect.whatsappE164}
+                                {phone}
                               </p>
                             ) : (
                               <p className="text-[10px] text-muted-foreground/50 italic truncate">Sem WhatsApp</p>
+                            )}
+                            {/* Cidade */}
+                            {prospect.city && (
+                              <p className="text-[10px] text-muted-foreground/70 flex items-center gap-0.5 truncate">
+                                <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                {prospect.city}
+                              </p>
                             )}
                             <div className="flex flex-wrap gap-0.5 pt-0.5">
                               {prospect.sources.map((s) => (
