@@ -439,6 +439,28 @@ async function crmRequest<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
+// ─── Scraper API (container isolado na porta 3001) ────────────────────────────
+async function scraperRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${EVOLUTION_BASE_URL}/scraper/api${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Scraper API ${res.status}: ${text || res.statusText}`);
+  }
+  const text = await res.text();
+  if (!text) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as unknown as T;
+  }
+}
+
 export function mapDbMessageToEvolution(dbMsg: any): Message {
   if (!dbMsg) return {} as Message;
   // If it's already in Evolution format, return it
@@ -594,26 +616,26 @@ export function fetchProspects(params: {
   if (params.page) qs.append("page", String(params.page));
   if (params.limit) qs.append("limit", String(params.limit));
   if (params.withPhone) qs.append("withPhone", "true");
-  return crmRequest<ProspectListResponse>(`/prospects?${qs.toString()}`);
+  return scraperRequest<ProspectListResponse>(`/prospects?${qs.toString()}`);
 }
 
 export function fetchProspectStats() {
-  return crmRequest<ProspectStats>("/prospects/stats");
+  return scraperRequest<ProspectStats>("/prospects/stats");
 }
 
 export function triggerScrape(states: string[], cities: string[] = [], sources?: string[]) {
-  return crmRequest<{ ok: boolean; message: string }>("/prospects/scrape", {
+  return scraperRequest<{ ok: boolean; message: string }>("/scrape", {
     method: "POST",
     body: JSON.stringify({ states, cities, sources }),
   });
 }
 
 export function fetchScrapeStatus() {
-  return crmRequest<ScrapeJobState>("/prospects/scrape/status");
+  return scraperRequest<ScrapeJobState>("/scrape/status");
 }
 
 export function clearProspects() {
-  return crmRequest<{ ok: boolean; deleted: number }>("/prospects", {
+  return scraperRequest<{ ok: boolean; deleted: number }>("/prospects", {
     method: "DELETE",
   });
 }
@@ -633,7 +655,7 @@ export interface ProspectRoutine {
 }
 
 export function fetchRoutines() {
-  return crmRequest<ProspectRoutine[]>("/prospects/routines");
+  return scraperRequest<ProspectRoutine[]>("/routines");
 }
 
 export function createRoutine(data: {
@@ -643,21 +665,21 @@ export function createRoutine(data: {
   cronExpr: string;
   sources: string[];
 }) {
-  return crmRequest<ProspectRoutine>("/prospects/routines", {
+  return scraperRequest<ProspectRoutine>("/routines", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
 export function toggleRoutine(id: string, enabled: boolean) {
-  return crmRequest<ProspectRoutine>(`/prospects/routines/${encodeURIComponent(id)}`, {
+  return scraperRequest<ProspectRoutine>(`/routines/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify({ enabled }),
   });
 }
 
 export function deleteRoutine(id: string) {
-  return crmRequest<{ success: boolean }>(`/prospects/routines/${encodeURIComponent(id)}`, {
+  return scraperRequest<{ success: boolean }>(`/routines/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
 }
