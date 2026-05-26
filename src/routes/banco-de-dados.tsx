@@ -137,26 +137,29 @@ function BancoDeDadosPage() {
     loadProspects();
   };
 
-  // Refresh state for city folders
-  const [refreshingCity, setRefreshingCity] = useState<string | null>(null);
+  // Refresh state: "city|source" key enquanto scraping
+  const [refreshingKey, setRefreshingKey] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleRefreshCity = useCallback(async (city: string, stateCode: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // não navega para a cidade ao clicar no botão
-    if (refreshingCity) return;
-    setRefreshingCity(city);
+  const SCRAPE_SOURCES = [
+    { id: "fatalmodel", label: "FM",    title: "Fatal Model",    color: "hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40" },
+    { id: "photoacomp", label: "PA",    title: "PhotoAcomp",     color: "hover:bg-violet-500/20 hover:text-violet-400 hover:border-violet-500/40" },
+    { id: "skokka",     label: "SK",    title: "Skokka",         color: "hover:bg-orange-500/20 hover:text-orange-400 hover:border-orange-500/40" },
+  ] as const;
+
+  const handleRefreshCity = useCallback(async (city: string, stateCode: string, source: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const key = `${city}|${source}`;
+    if (refreshingKey) return;
+    setRefreshingKey(key);
 
     try {
-      // Conta quantos existem ANTES do scrape
       const before = await fetchProspects({ state: stateCode, city, limit: 1 });
       const beforeCount = before.total;
 
-      // Normaliza o nome da cidade para o scraper (minúsculo, sem acento)
       const citySlug = city.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-");
+      await triggerScrape([stateCode.toLowerCase()], [citySlug], [source]);
 
-      await triggerScrape([stateCode.toLowerCase()], [citySlug], ["fatalmodel", "skokka", "photoacomp"]);
-
-      // Aguarda o job terminar (polling a cada 5s)
       await new Promise<void>((resolve) => {
         pollRef.current = setInterval(async () => {
           try {
@@ -172,17 +175,16 @@ function BancoDeDadosPage() {
         }, 5000);
       });
 
-      // Conta quantos existem DEPOIS
-      const after = await fetchProspects({ state: stateCode, city, limit: 1 });
-      const afterCount = after.total;
-      const newLeads = afterCount - beforeCount;
-      const alreadyInDB = afterCount - newLeads;
-
-      const status = await fetchScrapeStatus();
-      const found = status.counts?.total ?? afterCount;
+      const [after, finalStatus] = await Promise.all([
+        fetchProspects({ state: stateCode, city, limit: 1 }),
+        fetchScrapeStatus(),
+      ]);
+      const newLeads = after.total - beforeCount;
+      const found = finalStatus.counts?.total ?? after.total;
+      const alreadyInDB = found - newLeads;
 
       toast.success(
-        `${city}: ${found} encontrados — ${newLeads} novos, ${alreadyInDB} já estavam no banco.`,
+        `${city} / ${SCRAPE_SOURCES.find(s => s.id === source)?.title}: ${found} encontrados — ${newLeads} novos, ${alreadyInDB} já estavam no banco.`,
         { duration: 8000 }
       );
 
@@ -192,9 +194,9 @@ function BancoDeDadosPage() {
       console.error(err);
       toast.error(`Erro ao atualizar ${city}`);
     } finally {
-      setRefreshingCity(null);
+      setRefreshingKey(null);
     }
-  }, [refreshingCity, filterCity, loadStats, loadProspects]);
+  }, [refreshingKey, filterCity, loadStats, loadProspects]);
 
   // Group stats for folder view
   const groupedStats = stats?.byStateCity?.reduce((acc, curr) => {
@@ -413,7 +415,8 @@ function BancoDeDadosPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {currentStateData?.cities.map(({ city, count }) => {
-                  const isRefreshing = refreshingCity === city;
+                  const anyRefreshing = SCRAPE_SOURCES.some(s => refreshingKey === `${city}|${s.id}`);
+                  const activeSource = SCRAPE_SOURCES.find(s => refreshingKey === `${city}|${s.id}`);
                   return (
                     <div
                       key={city}
@@ -422,15 +425,28 @@ function BancoDeDadosPage() {
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                      {/* Botão de atualizar — canto superior direito */}
-                      <button
-                        onClick={(e) => handleRefreshCity(city, filterState, e)}
-                        disabled={!!refreshingCity}
-                        title={`Atualizar ${city}`}
-                        className="absolute top-2 right-2 z-10 p-1 rounded-lg bg-muted/50 hover:bg-emerald-500/20 text-muted-foreground hover:text-emerald-400 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-30"
+                      {/* Botões FM / PA / SK — canto superior direito, aparecem no hover */}
+                      <div
+                        className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-                      </button>
+                        {SCRAPE_SOURCES.map((src) => {
+                          const isThis = refreshingKey === `${city}|${src.id}`;
+                          return (
+                            <button
+                              key={src.id}
+                              onClick={(e) => handleRefreshCity(city, filterState, src.id, e)}
+                              disabled={!!refreshingKey}
+                              title={`Atualizar ${city} via ${src.title}`}
+                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold border bg-muted/60 text-muted-foreground border-border transition-colors disabled:opacity-30 ${src.color}`}
+                            >
+                              {isThis
+                                ? <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                : src.label}
+                            </button>
+                          );
+                        })}
+                      </div>
 
                       <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <Folder className="h-6 w-6 text-emerald-400 group-hover:hidden" />
@@ -440,7 +456,7 @@ function BancoDeDadosPage() {
                         {city}
                       </span>
                       <span className="text-[11px] font-mono bg-muted/60 border border-border px-2 py-0.5 rounded-full mt-3 text-muted-foreground">
-                        {isRefreshing ? "Atualizando..." : `${count} leads`}
+                        {anyRefreshing ? `Buscando ${activeSource?.label ?? ""}…` : `${count} leads`}
                       </span>
                     </div>
                   );
