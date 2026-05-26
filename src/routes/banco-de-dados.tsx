@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Folder, FolderOpen, ChevronRight, Search,
   Database, Wifi, Building2, Globe, ArrowLeft, Home, FileSpreadsheet,
-  RefreshCw, MessageCircle, MapPin, Square
+  RefreshCw, MessageCircle, MapPin, Square, Trash2, CheckSquare
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   Prospect, ProspectStats, ScrapeJobState,
   fetchProspects, fetchProspectStats,
-  triggerScrape, fetchScrapeStatus, stopScrape,
+  triggerScrape, fetchScrapeStatus, stopScrape, deleteProspects,
 } from "@/lib/evolution-api";
 import { ScrapeLiveFeed } from "@/components/ScrapeLiveFeed";
 
@@ -89,6 +89,8 @@ function BancoDeDadosPage() {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Load stats
   const loadStats = useCallback(async () => {
@@ -135,6 +137,8 @@ function BancoDeDadosPage() {
       setItems([]);
       setTotal(0);
     }
+    setSelectionMode(false);
+    setSelectedIds(new Set());
   }, [filterState, filterCity, loadProspects]);
 
   // Load prospects when page changes or search query changes (debounced/triggered manually)
@@ -301,6 +305,23 @@ function BancoDeDadosPage() {
     } catch (err) {
       console.error(err);
       toast.error("Falha ao exportar planilha.");
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    try {
+      await deleteProspects(ids);
+      setItems((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+      setTotal((prev) => prev - ids.length);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      toast.success(`${ids.length} contato${ids.length > 1 ? "s" : ""} apagado${ids.length > 1 ? "s" : ""}`);
+      loadStats();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao apagar contatos");
     }
   };
 
@@ -605,6 +626,16 @@ function BancoDeDadosPage() {
                     <FileSpreadsheet className="h-4 w-4" />
                     Exportar Planilha (CSV)
                   </Button>
+
+                  <Button
+                    variant={selectionMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                    className={`gap-2 h-9 ${selectionMode ? "bg-violet-600 hover:bg-violet-700 text-white border-violet-600" : ""}`}
+                  >
+                    <CheckSquare className="h-4 w-4" />
+                    {selectionMode ? "Cancelar seleção" : "Selecionar"}
+                  </Button>
                 </div>
               </div>
 
@@ -625,10 +656,25 @@ function BancoDeDadosPage() {
                       const initials = prospect.name.slice(0, 2).toUpperCase();
                       const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
                       const waUrl = phone ? `https://wa.me/${phone}` : null;
+                      const isSelected = selectedIds.has(prospect.id);
                       return (
                         <div
                           key={prospect.id}
-                          className="group relative bg-card border border-border rounded-xl overflow-hidden shadow-sm transition-all duration-200 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5"
+                          onClick={selectionMode ? () => {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(prospect.id)) next.delete(prospect.id);
+                              else next.add(prospect.id);
+                              return next;
+                            });
+                          } : undefined}
+                          className={`group relative bg-card rounded-xl overflow-hidden shadow-sm transition-all duration-200 border ${
+                            selectionMode
+                              ? isSelected
+                                ? "border-violet-500 ring-2 ring-violet-500/30 cursor-pointer"
+                                : "border-border hover:border-violet-400/50 cursor-pointer"
+                              : "border-border hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5"
+                          }`}
                         >
                           {/* Thumbnail */}
                           <div className="aspect-[4/5] bg-muted relative overflow-hidden">
@@ -654,13 +700,22 @@ function BancoDeDadosPage() {
                               </div>
                             </div>
                             {/* Multi-portal badge */}
-                            {prospect.sources.length >= 2 && (
+                            {prospect.sources.length >= 2 && !selectionMode && (
                               <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[8px] font-bold px-1 rounded">
                                 {prospect.sources.length}×
                               </div>
                             )}
+                            {/* Selection overlay */}
+                            {selectionMode && (
+                              <div className={`absolute inset-0 z-10 transition-colors ${isSelected ? "bg-violet-500/25" : ""}`}>
+                                <div className={`absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isSelected ? "bg-violet-500 border-violet-500" : "bg-black/40 border-white/60"}`}>
+                                  {isSelected && <CheckSquare className="h-3.5 w-3.5 text-white" />}
+                                </div>
+                              </div>
+                            )}
+
                             {/* Botão WhatsApp — aparece no hover, canto inferior direito */}
-                            {waUrl && (
+                            {waUrl && !selectionMode && (
                               <a
                                 href={waUrl}
                                 target="_blank"
@@ -744,6 +799,40 @@ function BancoDeDadosPage() {
           )}
         </div>
       </div>
+
+      {/* Floating action bar — bulk delete */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-card border border-border shadow-2xl rounded-2xl px-5 py-3 animate-in slide-in-from-bottom-4 duration-200">
+          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+            {selectedIds.size} selecionado{selectedIds.size > 1 ? "s" : ""}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSelectedIds(new Set(items.map((p) => p.id)))}
+            className="h-8 text-xs whitespace-nowrap"
+          >
+            Selecionar todos
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleDeleteSelected}
+            className="h-8 text-xs gap-1.5"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Apagar
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => { setSelectionMode(false); setSelectedIds(new Set()); }}
+            className="h-8 text-xs"
+          >
+            Cancelar
+          </Button>
+        </div>
+      )}
     </AppShell>
   );
 }

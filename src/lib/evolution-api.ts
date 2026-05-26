@@ -652,6 +652,13 @@ export function clearProspects() {
   });
 }
 
+export function deleteProspects(ids: string[]) {
+  return scraperRequest<{ ok: boolean; deleted: number }>("/prospects/bulk", {
+    method: "DELETE",
+    body: JSON.stringify({ ids }),
+  });
+}
+
 // ─── Rotinas de Captura Agendada ──────────────────────────────────────────────
 
 export interface ProspectRoutine {
