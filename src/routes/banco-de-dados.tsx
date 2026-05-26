@@ -153,6 +153,7 @@ function BancoDeDadosPage() {
   // Refresh state: "city|source" key enquanto scraping
   const [refreshingKey, setRefreshingKey] = useState<string | null>(null);
   const [isStopping, setIsStopping] = useState(false);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleStop = useCallback(async () => {
@@ -554,6 +555,42 @@ function BancoDeDadosPage() {
                       Buscar
                     </Button>
                   </form>
+
+                  {/* Botão Atualizar com popup de plataforma */}
+                  <div className="relative">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSourcePicker(v => !v)}
+                      disabled={!!refreshingKey}
+                      className="gap-2 h-9"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${refreshingKey ? 'animate-spin' : ''}`} />
+                      {refreshingKey ? 'Atualizando…' : 'Atualizar'}
+                    </Button>
+
+                    {showSourcePicker && !refreshingKey && (
+                      <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowSourcePicker(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-xl p-3 flex flex-col gap-1.5 min-w-[140px]">
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-1 mb-0.5">Plataforma</p>
+                        {SCRAPE_SOURCES.map((src) => (
+                          <button
+                            key={src.id}
+                            onClick={(e) => {
+                              setShowSourcePicker(false);
+                              handleRefreshCity(filterCity, filterState, src.id, e);
+                            }}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border bg-muted/40 text-muted-foreground border-border hover:bg-muted transition-colors ${src.color}`}
+                          >
+                            <span className="text-[10px] font-bold">{src.label}</span>
+                            {src.title}
+                          </button>
+                        ))}
+                      </div>
+                      </>
+                    )}
+                  </div>
 
                   <Button
                     variant="default"
