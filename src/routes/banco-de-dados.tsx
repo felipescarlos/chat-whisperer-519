@@ -493,6 +493,9 @@ function BancoDeDadosPage() {
     try { localStorage.setItem("db-view-mode", mode); } catch {}
   };
 
+  // Source filter
+  const [filterSource, setFilterSource] = useState("");
+
   // Contact popup
   const [popupProspect, setPopupProspect] = useState<Prospect | null>(null);
 
@@ -527,6 +530,7 @@ function BancoDeDadosPage() {
         state: filterState,
         city: filterCity,
         search: searchQuery,
+        source: filterSource || undefined,
         page,
         limit: LIMIT,
       });
@@ -538,7 +542,7 @@ function BancoDeDadosPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterState, filterCity, searchQuery, page]);
+  }, [filterState, filterCity, searchQuery, filterSource, page]);
 
   useEffect(() => {
     loadStats();
@@ -554,6 +558,7 @@ function BancoDeDadosPage() {
     }
     setSelectionMode(false);
     setSelectedIds(new Set());
+    setFilterSource("");
   }, [filterState, filterCity, loadProspects]);
 
   // Load prospects when page changes or search query changes (debounced/triggered manually)
@@ -1178,6 +1183,34 @@ function BancoDeDadosPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Source filter chips */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { id: "",           label: "Todos",       color: "border-border text-muted-foreground hover:border-foreground/40" },
+                  { id: "fatalmodel", label: "Fatal Model", color: "border-rose-500/40 text-rose-400 hover:bg-rose-500/10" },
+                  { id: "fotoacomp",  label: "PhotoAcomp",  color: "border-violet-500/40 text-violet-400 hover:bg-violet-500/10" },
+                  { id: "skokka",     label: "Skokka",      color: "border-orange-500/40 text-orange-400 hover:bg-orange-500/10" },
+                ].map((src) => (
+                  <button
+                    key={src.id}
+                    onClick={() => { setFilterSource(src.id); setPage(1); }}
+                    className={`px-3 py-1 rounded-full border text-xs font-medium transition-colors ${
+                      filterSource === src.id
+                        ? src.id === ""
+                          ? "bg-muted border-foreground/30 text-foreground"
+                          : src.id === "fatalmodel"
+                          ? "bg-rose-500/15 border-rose-500/60 text-rose-300"
+                          : src.id === "fotoacomp"
+                          ? "bg-violet-500/15 border-violet-500/60 text-violet-300"
+                          : "bg-orange-500/15 border-orange-500/60 text-orange-300"
+                        : src.color
+                    }`}
+                  >
+                    {src.label}
+                  </button>
+                ))}
               </div>
 
               {/* Live activity feed — só aparece durante raspagem desta cidade */}
