@@ -44,32 +44,36 @@ const STATES = [
 function ScrapeStatusBanner({ jobState }: { jobState: ScrapeJobState | null }) {
   if (!jobState || jobState.status === "idle") return null;
 
-  const colors = {
-    running: "border-primary/40 bg-primary/5 text-primary",
-    done: "border-emerald-500/40 bg-emerald-500/5 text-emerald-400",
-    error: "border-destructive/40 bg-destructive/5 text-destructive",
+  const isActive = ["running", "stopping"].includes(jobState.status);
+
+  const colors: Record<string, string> = {
+    running:  "border-primary/40 bg-primary/5 text-primary",
+    stopping: "border-yellow-500/40 bg-yellow-500/5 text-yellow-400",
+    done:     "border-emerald-500/40 bg-emerald-500/5 text-emerald-400",
+    stopped:  "border-muted/40 bg-muted/5 text-muted-foreground",
+    error:    "border-destructive/40 bg-destructive/5 text-destructive",
   };
 
-  const color = colors[jobState.status as keyof typeof colors] || colors.done;
+  const labels: Record<string, string> = {
+    running: "Executando", stopping: "Parando", done: "Concluído", stopped: "Interrompido", error: "Erro",
+  };
+
+  const color = colors[jobState.status] ?? colors.done;
 
   return (
     <div className={`border rounded-lg px-4 py-3 text-sm flex items-center gap-3 ${color}`}>
-      {jobState.status === "running" && (
-        <RefreshCw className="h-4 w-4 animate-spin shrink-0" />
-      )}
+      {isActive && <RefreshCw className="h-4 w-4 animate-spin shrink-0" />}
       <div className="flex-1 min-w-0">
-        <span className="font-medium capitalize">
-          {jobState.status === "running" ? "Executando" : jobState.status === "done" ? "Concluído" : "Erro"}
-        </span>
+        <span className="font-medium">{labels[jobState.status] ?? jobState.status}</span>
         {" — "}
         <span className="opacity-80">{jobState.message}</span>
-        {jobState.status === "running" && (
+        {isActive && (
           <span className="text-[11px] opacity-60 ml-2">
-            FM: {jobState.counts.fatalmodel} · SK: {jobState.counts.skokka} · PA: {jobState.counts.fotoacomp}
+            FM: {jobState.counts?.fatalmodel ?? 0} · SK: {jobState.counts?.skokka ?? 0} · PA: {jobState.counts?.fotoacomp ?? 0} · Total: {jobState.counts?.upserted ?? 0} salvos
           </span>
         )}
       </div>
-      {jobState.status === "done" && (
+      {!isActive && jobState.counts?.upserted > 0 && (
         <span className="text-[11px] opacity-70 shrink-0">
           {jobState.counts.upserted} salvos
         </span>
@@ -168,17 +172,19 @@ function RadarPage() {
     try {
       const state = await fetchScrapeStatus();
       setJobState(state);
-      if (state.status === "done" || state.status === "error") {
+      if (["done", "error", "stopped"].includes(state.status)) {
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = null;
         setScraping(false);
         if (state.status === "done") {
           toast.success(`Scraping concluído! ${state.counts.upserted} leads salvos.`);
           loadStats();
+        } else if (state.status === "stopped") {
+          toast.info("Raspagem interrompida.");
         } else {
           toast.error(`Erro no scraping: ${state.error}`);
         }
-      } else if (state.status === "running") {
+      } else if (["running", "stopping"].includes(state.status)) {
         setScraping(true);
       }
     } catch {
@@ -308,15 +314,19 @@ function RadarPage() {
   const [runningRoutineId, setRunningRoutineId] = useState<string | null>(null);
 
   const handleRunNow = async (r: ProspectRoutine) => {
-    if (runningRoutineId) return;
+    if (runningRoutineId || scraping) return;
     setRunningRoutineId(r.id);
+    setScraping(true);
     try {
       const cities = r.cities.map(c =>
         c.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-")
       );
       await triggerScrape([r.state], cities, r.sources);
       toast.success(`Rotina "${r.name}" iniciada!`);
+      pollRef.current = setInterval(checkJobStatus, 3000);
+      await checkJobStatus();
     } catch (err: any) {
+      setScraping(false);
       toast.error(err.message || "Falha ao executar rotina");
     } finally {
       setRunningRoutineId(null);
