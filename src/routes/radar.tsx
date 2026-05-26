@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Search, RefreshCw, Trash2, ChevronLeft, ChevronRight, ChevronDown,
   Radio, Database, Wifi, SlidersHorizontal, X, Check,
-  Building2, Globe, Clock, Plus, Calendar,
+  Building2, Globe, Clock, Plus, Calendar, Play,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -305,6 +305,24 @@ function RadarPage() {
     }
   };
 
+  const [runningRoutineId, setRunningRoutineId] = useState<string | null>(null);
+
+  const handleRunNow = async (r: ProspectRoutine) => {
+    if (runningRoutineId) return;
+    setRunningRoutineId(r.id);
+    try {
+      const cities = r.cities.map(c =>
+        c.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-")
+      );
+      await triggerScrape([r.state], cities, r.sources);
+      toast.success(`Rotina "${r.name}" iniciada!`);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao executar rotina");
+    } finally {
+      setRunningRoutineId(null);
+    }
+  };
+
   const handleClear = async () => {
     if (!confirm("Limpar TODOS os prospects do banco? Isso não pode ser desfeito.")) return;
     try {
@@ -500,6 +518,19 @@ function RadarPage() {
                             />
                           </button>
                         </div>
+
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleRunNow(r)}
+                          disabled={!!runningRoutineId}
+                          title="Executar agora"
+                          className="h-8 w-8 rounded-lg text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/60"
+                        >
+                          {runningRoutineId === r.id
+                            ? <RefreshCw className="h-4 w-4 animate-spin" />
+                            : <Play className="h-4 w-4 fill-current" />}
+                        </Button>
 
                         <Button
                           variant="ghost"
