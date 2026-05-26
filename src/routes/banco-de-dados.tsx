@@ -46,16 +46,29 @@ const SOURCES_LABELS: Record<string, string> = {
   fotoacomp: "PhotoAcomp",
 };
 
-function SourceBadge({ source }: { source: string }) {
+function SourceBadge({ source, href }: { source: string; href?: string }) {
   const colors: Record<string, string> = {
     fatalmodel: "bg-rose-500/20 text-rose-300 border-rose-500/30",
     skokka: "bg-orange-500/20 text-orange-300 border-orange-500/30",
     fotoacomp: "bg-violet-500/20 text-violet-300 border-violet-500/30",
   };
+  const cls = `text-[10px] px-1.5 py-0.5 rounded border font-medium transition-opacity ${colors[source] || "bg-muted text-muted-foreground border-border"}`;
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        title={`Ver anúncio no ${SOURCES_LABELS[source] || source}`}
+        className={`${cls} hover:opacity-70 cursor-pointer`}
+      >
+        {SOURCES_LABELS[source] || source}
+      </a>
+    );
+  }
   return (
-    <span
-      className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${colors[source] || "bg-muted text-muted-foreground border-border"}`}
-    >
+    <span className={cls}>
       {SOURCES_LABELS[source] || source}
     </span>
   );
@@ -609,7 +622,11 @@ function BancoDeDadosPage() {
                             )}
                             <div className="flex flex-wrap gap-0.5 pt-0.5">
                               {prospect.sources.map((s) => (
-                                <SourceBadge key={s} source={s} />
+                                <SourceBadge
+                                  key={s}
+                                  source={s}
+                                  href={prospect.sourceUrls?.[s]}
+                                />
                               ))}
                             </div>
                           </div>
