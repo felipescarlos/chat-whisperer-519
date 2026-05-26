@@ -664,6 +664,10 @@ export interface MoveConflict {
   existingId: string;
   name: string;
   phone: string | null;
+  phoneMatch: boolean;
+  differentSources: boolean;
+  movingSources: string[];
+  existingSources: string[];
 }
 
 export function previewMoveProspects(data: {
@@ -681,7 +685,7 @@ export function moveProspects(data: {
   ids: string[];
   targetCity: string;
   targetState: string;
-  conflictResolution: "replace" | "keep-both" | "skip";
+  conflictResolution: "replace" | "keep-both" | "skip" | "merge";
 }) {
   return scraperRequest<{ ok: boolean; moved: number }>("/prospects/move", {
     method: "POST",

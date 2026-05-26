@@ -508,7 +508,7 @@ function BancoDeDadosPage() {
   const [moveTargetState, setMoveTargetState] = useState("");
   const [moveTargetCity, setMoveTargetCity] = useState("");
   const [moveConflicts, setMoveConflicts] = useState<MoveConflict[] | null>(null);
-  const [moveConflictResolution, setMoveConflictResolution] = useState<"replace" | "keep-both" | "skip">("skip");
+  const [moveConflictResolution, setMoveConflictResolution] = useState<"replace" | "keep-both" | "skip" | "merge">("skip");
   const [moving, setMoving] = useState(false);
 
   // Load stats
@@ -759,6 +759,9 @@ function BancoDeDadosPage() {
       if (preview.conflicts.length === 0) {
         await executeMoveProspects("keep-both");
       } else {
+        // Se todos os conflitos são mesmo telefone com plataformas diferentes → sugere merge
+        const allMergeable = preview.conflicts.every(c => c.phoneMatch && c.differentSources);
+        setMoveConflictResolution(allMergeable ? "merge" : "skip");
         setMoveConflicts(preview.conflicts);
       }
     } catch (err) {
@@ -1610,8 +1613,15 @@ function BancoDeDadosPage() {
                   {moveConflicts.map((c) => (
                     <div key={c.movedId} className="flex items-center gap-2 px-3 py-2 bg-muted/40 border border-border rounded-lg text-xs">
                       <span className="font-medium truncate flex-1">{c.name}</span>
+                      {c.differentSources && (
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          {c.movingSources.map(s => <SourceBadge key={s} source={s} />)}
+                          <span className="text-muted-foreground mx-0.5">+</span>
+                          {c.existingSources.filter(s => !c.movingSources.includes(s)).map(s => <SourceBadge key={s} source={s} />)}
+                        </div>
+                      )}
                       <span className="text-muted-foreground font-mono shrink-0">
-                        {c.phone ? c.phone : "Sem telefone"}
+                        {c.phone ? c.phone.replace(/^55(\d{2})(\d{4,5})(\d{4})$/, "($1) $2-$3") : "Sem telefone"}
                       </span>
                     </div>
                   ))}
@@ -1620,18 +1630,23 @@ function BancoDeDadosPage() {
                 {/* Resolution options */}
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Como resolver os conflitos?</p>
-                  {(
-                    [
-                      { value: "skip",      label: "Pular duplicatas",  desc: "Move apenas os sem conflito" },
-                      { value: "keep-both", label: "Manter ambos",      desc: "Move tudo, ambos ficam na pasta" },
-                      { value: "replace",   label: "Substituir",        desc: "Apaga o existente e move o selecionado" },
-                    ] as const
-                  ).map((opt) => (
+                  {([
+                    ...(moveConflicts.some(c => c.phoneMatch && c.differentSources) ? [{
+                      value: "merge" as const,
+                      label: "Mesclar origens",
+                      desc: "Mantém o existente e adiciona as etiquetas de plataforma do selecionado",
+                    }] : []),
+                    { value: "skip" as const,      label: "Pular duplicatas",  desc: "Move apenas os sem conflito" },
+                    { value: "keep-both" as const, label: "Manter ambos",      desc: "Move tudo, ambos ficam na pasta" },
+                    { value: "replace" as const,   label: "Substituir",        desc: "Apaga o existente e move o selecionado" },
+                  ]).map((opt) => (
                     <label
                       key={opt.value}
                       className={`flex items-start gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${
                         moveConflictResolution === opt.value
-                          ? "border-violet-500/60 bg-violet-500/10"
+                          ? opt.value === "merge"
+                            ? "border-emerald-500/60 bg-emerald-500/10"
+                            : "border-violet-500/60 bg-violet-500/10"
                           : "border-border hover:border-border/80 hover:bg-muted/30"
                       }`}
                     >
