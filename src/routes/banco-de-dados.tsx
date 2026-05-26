@@ -1308,8 +1308,10 @@ function BancoDeDadosPage() {
                                 </td>
                                 <td className="px-3 py-2">
                                   <span className="font-medium truncate block max-w-[180px]">{prospect.name}</span>
-                                  {prospect.sources.length >= 2 && (
-                                    <span className="text-[9px] text-primary font-bold">{prospect.sources.length}× portais</span>
+                                  {prospect.crmContact?.stage && (
+                                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: prospect.crmContact.stage.color + "33", color: prospect.crmContact.stage.color }}>
+                                      {prospect.crmContact.stage.name}
+                                    </span>
                                   )}
                                 </td>
                                 <td className="px-3 py-2 hidden sm:table-cell">
@@ -1320,14 +1322,28 @@ function BancoDeDadosPage() {
                                   )}
                                 </td>
                                 <td className="px-3 py-2 hidden md:table-cell">
-                                  <div className="flex flex-wrap gap-0.5">
+                                  <div className="flex flex-wrap gap-0.5 items-center">
                                     {prospect.sources.map((s) => (
                                       <SourceBadge key={s} source={s} href={prospect.sourceUrls?.[s]} />
                                     ))}
+                                    {prospect.crmContact && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded border font-medium bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                                        Contatado
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
                                 <td className="px-3 py-2 hidden lg:table-cell text-xs text-muted-foreground whitespace-nowrap">
-                                  {new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                                  {prospect.crmContact?.messages?.[0] ? (
+                                    <span className="truncate block max-w-[160px]" title={prospect.crmContact.messages[0].text}>
+                                      {prospect.crmContact.messages[0].fromMe ? "↗ " : "↙ "}
+                                      {prospect.crmContact.messages[0].text.slice(0, 40)}{prospect.crmContact.messages[0].text.length > 40 ? "…" : ""}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground/40">
+                                      {new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-3 py-2">
                                   {waUrl && !selectionMode && (
@@ -1454,13 +1470,17 @@ function BancoDeDadosPage() {
                             )}
                             <div className="flex flex-wrap gap-0.5 pt-0.5">
                               {prospect.sources.map((s) => (
-                                <SourceBadge
-                                  key={s}
-                                  source={s}
-                                  href={prospect.sourceUrls?.[s]}
-                                />
+                                <SourceBadge key={s} source={s} href={prospect.sourceUrls?.[s]} />
                               ))}
+                              {prospect.crmContact && (
+                                <span className="text-[9px] px-1 py-0.5 rounded border font-semibold bg-emerald-500/15 text-emerald-400 border-emerald-500/30">✓</span>
+                              )}
                             </div>
+                            {prospect.crmContact?.stage && (
+                              <p className="text-[9px] font-semibold truncate mt-0.5" style={{ color: prospect.crmContact.stage.color }}>
+                                {prospect.crmContact.stage.name}
+                              </p>
+                            )}
                           </div>
                         </div>
                       );

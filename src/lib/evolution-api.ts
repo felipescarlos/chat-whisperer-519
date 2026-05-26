@@ -559,6 +559,13 @@ export function fetchFunnelStats() {
 
 // ─── Radar de Prospects ───────────────────────────────────────────────────────
 
+export interface ProspectCrmContact {
+  id: string;
+  botEnabled: boolean;
+  stage: { name: string; color: string } | null;
+  messages: { text: string; messageTimestamp: number; fromMe: boolean }[];
+}
+
 export interface Prospect {
   id: string;
   name: string;
@@ -572,6 +579,7 @@ export interface Prospect {
   importedContactId: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
+  crmContact: ProspectCrmContact | null;
 }
 
 export interface ProspectListResponse {
