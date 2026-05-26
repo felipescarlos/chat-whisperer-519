@@ -369,6 +369,8 @@ function BancoDeDadosPage() {
 
   const executeMoveProspects = async (resolution: "replace" | "keep-both" | "skip") => {
     setMoving(true);
+    const originCity = filterCity;
+    const originState = filterState;
     try {
       const ids = Array.from(selectedIds);
       const res = await moveProspects({ ids, targetCity: moveTargetCity, targetState: moveTargetState, conflictResolution: resolution });
@@ -377,8 +379,35 @@ function BancoDeDadosPage() {
       setSelectedIds(new Set());
       setSelectionMode(false);
       closeMoveModal();
-      toast.success(`${res.moved} contato${res.moved > 1 ? "s" : ""} movido${res.moved > 1 ? "s" : ""} para ${moveTargetCity}`);
       loadStats();
+
+      const movedIds = [...ids];
+      const destCity = moveTargetCity;
+      const destState = moveTargetState;
+      toast.success(
+        `${res.moved} contato${res.moved > 1 ? "s" : ""} movido${res.moved > 1 ? "s" : ""} para ${destCity}`,
+        {
+          duration: 10000,
+          action: {
+            label: "Desfazer",
+            onClick: async () => {
+              try {
+                const undo = await moveProspects({
+                  ids: movedIds,
+                  targetCity: originCity,
+                  targetState: originState,
+                  conflictResolution: "keep-both",
+                });
+                if (filterCity === originCity && filterState === originState) loadProspects();
+                loadStats();
+                toast.success(`Movimentação desfeita — ${undo.moved} contato${undo.moved > 1 ? "s" : ""} restaurado${undo.moved > 1 ? "s" : ""} em ${originCity}`);
+              } catch {
+                toast.error("Erro ao desfazer movimentação");
+              }
+            },
+          },
+        },
+      );
     } catch (err) {
       console.error(err);
       toast.error("Erro ao mover contatos");
