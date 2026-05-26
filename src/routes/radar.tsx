@@ -158,6 +158,7 @@ function RadarPage() {
   const [scraping, setScraping] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isInitialMount = useRef(true);
 
   const loadStats = useCallback(async () => {
     try {
@@ -188,17 +189,21 @@ function RadarPage() {
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = null;
         setScraping(false);
-        if (state.status === "done") {
-          toast.success(`Scraping concluído! ${state.counts.upserted} leads salvos.`);
-          loadStats();
-        } else if (state.status === "stopped") {
-          toast.info("Raspagem interrompida.");
-        } else {
-          toast.error(`Erro no scraping: ${state.error}`);
+        // Não notifica se o job já estava terminado quando a página carregou
+        if (!isInitialMount.current) {
+          if (state.status === "done") {
+            toast.success(`Scraping concluído! ${state.counts.upserted} leads salvos.`);
+            loadStats();
+          } else if (state.status === "stopped") {
+            toast.info("Raspagem interrompida.");
+          } else {
+            toast.error(`Erro no scraping: ${state.error}`);
+          }
         }
       } else if (["running", "stopping"].includes(state.status)) {
         setScraping(true);
       }
+      isInitialMount.current = false;
     } catch {
       /* silencia */
     }
@@ -238,8 +243,7 @@ function RadarPage() {
       } else {
         await triggerScrape(scrapeStates, [], selectedPlatforms);
       }
-      // Inicia polling
-      pollRef.current = setInterval(checkJobStatus, 3000);
+      // Polling iniciado pelo useEffect quando scraping=true
       await checkJobStatus();
     } catch (e: any) {
       setScraping(false);
@@ -335,7 +339,6 @@ function RadarPage() {
       );
       await triggerScrape([r.state], cities, r.sources);
       toast.success(`Rotina "${r.name}" iniciada!`);
-      pollRef.current = setInterval(checkJobStatus, 3000);
       await checkJobStatus();
     } catch (err: any) {
       setScraping(false);

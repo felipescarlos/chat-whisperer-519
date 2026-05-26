@@ -572,7 +572,25 @@ function BancoDeDadosPage() {
   const [isStopping, setIsStopping] = useState(false);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [scrapeJobState, setScrapeJobState] = useState<ScrapeJobState | null>(null);
+  const [globalScraping, setGlobalScraping] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const globalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll global scrape status (para mostrar botão Stop mesmo quando iniciado pelo Radar)
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const s = await fetchScrapeStatus();
+        const running = ["running", "stopping"].includes(s.status);
+        setGlobalScraping(running);
+        if (running) setScrapeJobState(s);
+        else if (!refreshingKey) setScrapeJobState(null);
+      } catch { /* silencia */ }
+    };
+    check();
+    globalPollRef.current = setInterval(check, 5000);
+    return () => { if (globalPollRef.current) clearInterval(globalPollRef.current); };
+  }, [refreshingKey]);
 
   const handleStop = useCallback(async () => {
     setIsStopping(true);
@@ -988,8 +1006,8 @@ function BancoDeDadosPage() {
                     Nova pasta
                   </Button>
 
-                  {/* Botão Stop — só aparece quando há raspagem em andamento */}
-                  {refreshingKey && (
+                  {/* Botão Stop — aparece sempre que houver scraping em andamento */}
+                  {(refreshingKey || globalScraping) && (
                     <Button
                       variant="destructive"
                       size="sm"
