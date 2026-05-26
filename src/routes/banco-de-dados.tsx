@@ -165,7 +165,7 @@ function ContactPopup({
               </span>
             )}
             <span className="flex items-center gap-1 text-muted-foreground">
-              <Calendar className="h-3 w-3" /> Captado {new Date(prospect.firstSeenAt).toLocaleDateString("pt-BR")}
+              <Calendar className="h-3 w-3" /> {new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
             </span>
           </div>
 
@@ -1033,7 +1033,7 @@ function BancoDeDadosPage() {
                         <Folder className="h-6 w-6 text-emerald-400 group-hover:hidden" />
                         <FolderOpen className="h-6 w-6 text-emerald-400 hidden group-hover:block" />
                       </div>
-                      <span className="font-bold text-base text-foreground group-hover:text-emerald-400 transition-colors text-center line-clamp-1 max-w-full px-1">
+                      <span className="font-bold text-sm text-foreground group-hover:text-emerald-400 transition-colors text-center line-clamp-2 leading-tight max-w-full px-1 break-words">
                         {city}
                       </span>
                       <span className="text-[11px] font-mono bg-muted/60 border border-border px-2 py-0.5 rounded-full mt-3 text-muted-foreground">
@@ -1203,7 +1203,7 @@ function BancoDeDadosPage() {
                             <th className="text-left px-3 py-2.5 font-medium">Nome</th>
                             <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Telefone</th>
                             <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Portais</th>
-                            <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Captado</th>
+                            <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Capturado em</th>
                             <th className="w-9 px-3 py-2.5" />
                           </tr>
                         </thead>
@@ -1258,8 +1258,8 @@ function BancoDeDadosPage() {
                                     ))}
                                   </div>
                                 </td>
-                                <td className="px-3 py-2 hidden lg:table-cell text-xs text-muted-foreground">
-                                  {new Date(prospect.firstSeenAt).toLocaleDateString("pt-BR")}
+                                <td className="px-3 py-2 hidden lg:table-cell text-xs text-muted-foreground whitespace-nowrap">
+                                  {new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                                 </td>
                                 <td className="px-3 py-2">
                                   {waUrl && !selectionMode && (
