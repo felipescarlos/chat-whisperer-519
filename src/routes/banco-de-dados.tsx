@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  Prospect, ProspectStats,
+  Prospect, ProspectStats, ScrapeJobState,
   fetchProspects, fetchProspectStats,
   triggerScrape, fetchScrapeStatus, stopScrape,
 } from "@/lib/evolution-api";
+import { ScrapeLiveFeed } from "@/components/ScrapeLiveFeed";
 
 export const Route = createFileRoute("/banco-de-dados")({
   head: () => ({
@@ -154,6 +155,7 @@ function BancoDeDadosPage() {
   const [refreshingKey, setRefreshingKey] = useState<string | null>(null);
   const [isStopping, setIsStopping] = useState(false);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [scrapeJobState, setScrapeJobState] = useState<ScrapeJobState | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleStop = useCallback(async () => {
@@ -191,6 +193,7 @@ function BancoDeDadosPage() {
         pollRef.current = setInterval(async () => {
           try {
             const status = await fetchScrapeStatus();
+            setScrapeJobState(status);
             if (!["running", "stopping"].includes(status.status)) {
               clearInterval(pollRef.current!);
               resolve();
@@ -199,7 +202,7 @@ function BancoDeDadosPage() {
             clearInterval(pollRef.current!);
             resolve();
           }
-        }, 5000);
+        }, 3000);
       });
 
       const [after, finalStatus] = await Promise.all([
@@ -222,6 +225,7 @@ function BancoDeDadosPage() {
       toast.error(`Erro ao atualizar ${city}`);
     } finally {
       setRefreshingKey(null);
+      setScrapeJobState(null);
     }
   }, [refreshingKey, filterCity, loadStats, loadProspects]);
 
@@ -603,6 +607,9 @@ function BancoDeDadosPage() {
                   </Button>
                 </div>
               </div>
+
+              {/* Live activity feed — só aparece durante raspagem desta cidade */}
+              <ScrapeLiveFeed jobState={scrapeJobState} city={filterCity} />
 
               {/* Grid of Leads */}
               {loading ? (

@@ -6,6 +6,7 @@ import {
   Building2, Globe, Clock, Plus, Calendar, Play,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ScrapeLiveFeed } from "@/components/ScrapeLiveFeed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -388,6 +389,9 @@ function RadarPage() {
 
           {/* Status banner */}
           <ScrapeStatusBanner jobState={jobState} />
+
+          {/* Live activity feed */}
+          <ScrapeLiveFeed jobState={jobState} />
 
           {/* Stats Summary */}
           {stats && (

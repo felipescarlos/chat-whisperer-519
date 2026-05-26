@@ -590,13 +590,19 @@ export interface ProspectStats {
   byStateCity?: { state: string; city: string; count: number }[];
 }
 
+export interface ScrapeActivityItem {
+  ts: number;
+  text: string;
+}
+
 export interface ScrapeJobState {
-  status: "idle" | "running" | "done" | "error";
+  status: "idle" | "running" | "stopping" | "stopped" | "done" | "error";
   startedAt: string | null;
   finishedAt: string | null;
   message: string;
   counts: { fatalmodel: number; skokka: number; fotoacomp: number; total: number; upserted: number };
   error: string | null;
+  recentActivity?: ScrapeActivityItem[];
 }
 
 export function fetchProspects(params: {
