@@ -596,7 +596,7 @@ function BancoDeDadosPage() {
 
   const SCRAPE_SOURCES = [
     { id: "fatalmodel", label: "FM",    title: "Fatal Model",    color: "hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40" },
-    { id: "photoacomp", label: "PA",    title: "PhotoAcomp",     color: "hover:bg-violet-500/20 hover:text-violet-400 hover:border-violet-500/40" },
+    { id: "fotoacomp",  label: "PA",    title: "PhotoAcomp",     color: "hover:bg-violet-500/20 hover:text-violet-400 hover:border-violet-500/40" },
     { id: "skokka",     label: "SK",    title: "Skokka",         color: "hover:bg-orange-500/20 hover:text-orange-400 hover:border-orange-500/40" },
   ] as const;
 
