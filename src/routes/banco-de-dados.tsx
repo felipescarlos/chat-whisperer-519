@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Folder, FolderOpen, ChevronRight, Search,
   Database, Wifi, Building2, Globe, ArrowLeft, Home, FileSpreadsheet,
-  RefreshCw, MessageCircle, MapPin
+  RefreshCw, MessageCircle, MapPin, Square
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   Prospect, ProspectStats,
   fetchProspects, fetchProspectStats,
-  triggerScrape, fetchScrapeStatus,
+  triggerScrape, fetchScrapeStatus, stopScrape,
 } from "@/lib/evolution-api";
 
 export const Route = createFileRoute("/banco-de-dados")({
@@ -152,7 +152,20 @@ function BancoDeDadosPage() {
 
   // Refresh state: "city|source" key enquanto scraping
   const [refreshingKey, setRefreshingKey] = useState<string | null>(null);
+  const [isStopping, setIsStopping] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const handleStop = useCallback(async () => {
+    setIsStopping(true);
+    try {
+      await stopScrape();
+      toast.info("Parando raspagem… aguarde o perfil atual terminar.");
+    } catch {
+      toast.error("Erro ao parar raspagem");
+    } finally {
+      setIsStopping(false);
+    }
+  }, []);
 
   const SCRAPE_SOURCES = [
     { id: "fatalmodel", label: "FM",    title: "Fatal Model",    color: "hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40" },
@@ -177,7 +190,7 @@ function BancoDeDadosPage() {
         pollRef.current = setInterval(async () => {
           try {
             const status = await fetchScrapeStatus();
-            if (status.status !== "running") {
+            if (!["running", "stopping"].includes(status.status)) {
               clearInterval(pollRef.current!);
               resolve();
             }
@@ -424,6 +437,22 @@ function BancoDeDadosPage() {
                 <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                   Cidades em {stateLabel} ({filterState})
                 </h2>
+
+                {/* Botão Stop — só aparece quando há raspagem em andamento */}
+                {refreshingKey && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleStop}
+                    disabled={isStopping}
+                    className="ml-auto h-7 px-3 text-xs gap-1.5"
+                  >
+                    {isStopping
+                      ? <RefreshCw className="h-3 w-3 animate-spin" />
+                      : <Square className="h-3 w-3 fill-current" />}
+                    {isStopping ? "Parando…" : "Parar raspagem"}
+                  </Button>
+                )}
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">

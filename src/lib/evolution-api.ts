@@ -634,6 +634,12 @@ export function fetchScrapeStatus() {
   return scraperRequest<ScrapeJobState>("/scrape/status");
 }
 
+export function stopScrape() {
+  return scraperRequest<{ ok: boolean; message?: string }>("/scrape/stop", {
+    method: "POST",
+  });
+}
+
 export function clearProspects() {
   return scraperRequest<{ ok: boolean; deleted: number }>("/prospects", {
     method: "DELETE",
