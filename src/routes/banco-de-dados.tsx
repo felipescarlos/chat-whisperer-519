@@ -3,16 +3,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Folder, FolderOpen, ChevronRight, Search,
   Database, Wifi, Building2, Globe, ArrowLeft, Home, FileSpreadsheet,
-  RefreshCw, MessageCircle, MapPin, Square, Trash2, CheckSquare
+  RefreshCw, MessageCircle, MapPin, Square, Trash2, CheckSquare,
+  FolderInput, AlertTriangle, X
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  Prospect, ProspectStats, ScrapeJobState,
+  Prospect, ProspectStats, ScrapeJobState, MoveConflict,
   fetchProspects, fetchProspectStats,
-  triggerScrape, fetchScrapeStatus, stopScrape, deleteProspects,
+  triggerScrape, fetchScrapeStatus, stopScrape,
+  deleteProspects, previewMoveProspects, moveProspects,
 } from "@/lib/evolution-api";
 import { ScrapeLiveFeed } from "@/components/ScrapeLiveFeed";
 
@@ -91,6 +93,14 @@ function BancoDeDadosPage() {
   const [page, setPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Move modal state
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [moveTargetState, setMoveTargetState] = useState("");
+  const [moveTargetCity, setMoveTargetCity] = useState("");
+  const [moveConflicts, setMoveConflicts] = useState<MoveConflict[] | null>(null);
+  const [moveConflictResolution, setMoveConflictResolution] = useState<"replace" | "keep-both" | "skip">("skip");
+  const [moving, setMoving] = useState(false);
 
   // Load stats
   const loadStats = useCallback(async () => {
@@ -322,6 +332,58 @@ function BancoDeDadosPage() {
     } catch (err) {
       console.error(err);
       toast.error("Erro ao apagar contatos");
+    }
+  };
+
+  const openMoveModal = () => {
+    setMoveTargetState("");
+    setMoveTargetCity("");
+    setMoveConflicts(null);
+    setMoveConflictResolution("skip");
+    setShowMoveModal(true);
+  };
+
+  const closeMoveModal = () => {
+    setShowMoveModal(false);
+    setMoveConflicts(null);
+  };
+
+  const handleMoveCheck = async () => {
+    if (!moveTargetState || !moveTargetCity) return;
+    setMoving(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const preview = await previewMoveProspects({ ids, targetCity: moveTargetCity, targetState: moveTargetState });
+      if (preview.conflicts.length === 0) {
+        await executeMoveProspects("keep-both");
+      } else {
+        setMoveConflicts(preview.conflicts);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao verificar destino");
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  const executeMoveProspects = async (resolution: "replace" | "keep-both" | "skip") => {
+    setMoving(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await moveProspects({ ids, targetCity: moveTargetCity, targetState: moveTargetState, conflictResolution: resolution });
+      setItems((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+      setTotal((prev) => prev - res.moved);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      closeMoveModal();
+      toast.success(`${res.moved} contato${res.moved > 1 ? "s" : ""} movido${res.moved > 1 ? "s" : ""} para ${moveTargetCity}`);
+      loadStats();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao mover contatos");
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -816,6 +878,15 @@ function BancoDeDadosPage() {
           </Button>
           <Button
             size="sm"
+            variant="outline"
+            onClick={openMoveModal}
+            className="h-8 text-xs gap-1.5 border-violet-500/50 text-violet-400 hover:bg-violet-500/10"
+          >
+            <FolderInput className="h-3.5 w-3.5" />
+            Mover para…
+          </Button>
+          <Button
+            size="sm"
             variant="destructive"
             onClick={handleDeleteSelected}
             className="h-8 text-xs gap-1.5"
@@ -831,6 +902,154 @@ function BancoDeDadosPage() {
           >
             Cancelar
           </Button>
+        </div>
+      )}
+
+      {/* Move modal */}
+      {showMoveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeMoveModal} />
+          <div className="relative z-10 w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <FolderInput className="h-5 w-5 text-violet-400" />
+                <h2 className="font-semibold text-base">
+                  {moveConflicts ? "Conflitos encontrados" : `Mover ${selectedIds.size} contato${selectedIds.size > 1 ? "s" : ""} para…`}
+                </h2>
+              </div>
+              <button onClick={closeMoveModal} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body — Step 1: Destination Picker */}
+            {!moveConflicts && (
+              <div className="px-6 py-5 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado</label>
+                  <select
+                    value={moveTargetState}
+                    onChange={(e) => { setMoveTargetState(e.target.value); setMoveTargetCity(""); }}
+                    className="w-full h-10 rounded-lg border border-border bg-muted/40 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                  >
+                    <option value="">Selecione um estado…</option>
+                    {sortedStates
+                      .filter(([code]) => code !== filterState || true)
+                      .map(([code]) => (
+                        <option key={code} value={code}>
+                          {STATES.find((s) => s.code === code)?.label || code} ({code})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cidade</label>
+                  <select
+                    value={moveTargetCity}
+                    onChange={(e) => setMoveTargetCity(e.target.value)}
+                    disabled={!moveTargetState}
+                    className="w-full h-10 rounded-lg border border-border bg-muted/40 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-50"
+                  >
+                    <option value="">Selecione uma cidade…</option>
+                    {sortedStates
+                      .find(([code]) => code === moveTargetState)?.[1]
+                      .cities.filter((c) => !(moveTargetState === filterState && c.city === filterCity))
+                      .map(({ city }) => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="ghost" size="sm" onClick={closeMoveModal}>Cancelar</Button>
+                  <Button
+                    size="sm"
+                    disabled={!moveTargetState || !moveTargetCity || moving}
+                    onClick={handleMoveCheck}
+                    className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white"
+                  >
+                    {moving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <FolderInput className="h-3.5 w-3.5" />}
+                    {moving ? "Verificando…" : "Verificar e mover"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Body — Step 2: Conflict Resolution */}
+            {moveConflicts && (
+              <div className="px-6 py-5 space-y-4">
+                <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                  <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-amber-300">
+                    <span className="font-semibold">{moveConflicts.length} de {selectedIds.size} contato{selectedIds.size > 1 ? "s" : ""}</span>
+                    {" "}já existe{moveConflicts.length > 1 ? "m" : ""} em{" "}
+                    <span className="font-semibold">{moveTargetCity} / {moveTargetState}</span>.
+                  </p>
+                </div>
+
+                {/* Conflict list */}
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                  {moveConflicts.map((c) => (
+                    <div key={c.movedId} className="flex items-center gap-2 px-3 py-2 bg-muted/40 border border-border rounded-lg text-xs">
+                      <span className="font-medium truncate flex-1">{c.name}</span>
+                      <span className="text-muted-foreground font-mono shrink-0">
+                        {c.phone ? c.phone : "Sem telefone"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Resolution options */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Como resolver os conflitos?</p>
+                  {(
+                    [
+                      { value: "skip",      label: "Pular duplicatas",  desc: "Move apenas os sem conflito" },
+                      { value: "keep-both", label: "Manter ambos",      desc: "Move tudo, ambos ficam na pasta" },
+                      { value: "replace",   label: "Substituir",        desc: "Apaga o existente e move o selecionado" },
+                    ] as const
+                  ).map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex items-start gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${
+                        moveConflictResolution === opt.value
+                          ? "border-violet-500/60 bg-violet-500/10"
+                          : "border-border hover:border-border/80 hover:bg-muted/30"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="conflictResolution"
+                        value={opt.value}
+                        checked={moveConflictResolution === opt.value}
+                        onChange={() => setMoveConflictResolution(opt.value)}
+                        className="mt-0.5 accent-violet-500"
+                      />
+                      <div>
+                        <p className="text-sm font-medium">{opt.label}</p>
+                        <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button variant="ghost" size="sm" onClick={closeMoveModal}>Cancelar</Button>
+                  <Button
+                    size="sm"
+                    disabled={moving}
+                    onClick={() => executeMoveProspects(moveConflictResolution)}
+                    className={`gap-1.5 ${moveConflictResolution === "replace" ? "bg-red-600 hover:bg-red-700" : "bg-violet-600 hover:bg-violet-700"} text-white`}
+                  >
+                    {moving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <FolderInput className="h-3.5 w-3.5" />}
+                    {moving ? "Movendo…" : "Confirmar"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </AppShell>

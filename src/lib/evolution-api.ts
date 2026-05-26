@@ -659,6 +659,36 @@ export function deleteProspects(ids: string[]) {
   });
 }
 
+export interface MoveConflict {
+  movedId: string;
+  existingId: string;
+  name: string;
+  phone: string | null;
+}
+
+export function previewMoveProspects(data: {
+  ids: string[];
+  targetCity: string;
+  targetState: string;
+}) {
+  return scraperRequest<{ conflicts: MoveConflict[]; safeCount: number }>(
+    "/prospects/move/preview",
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+export function moveProspects(data: {
+  ids: string[];
+  targetCity: string;
+  targetState: string;
+  conflictResolution: "replace" | "keep-both" | "skip";
+}) {
+  return scraperRequest<{ ok: boolean; moved: number }>("/prospects/move", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 // ─── Rotinas de Captura Agendada ──────────────────────────────────────────────
 
 export interface ProspectRoutine {
