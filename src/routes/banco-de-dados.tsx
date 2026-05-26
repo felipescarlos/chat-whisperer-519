@@ -467,7 +467,7 @@ function ImportModal({
   );
 }
 
-const LIMIT = 32;
+const LIMIT = 2000;
 
 function BancoDeDadosPage() {
   // Navigation Path: "" (Root/States) -> "STATE_CODE" (Cities) -> "STATE_CODE/CITY" (Leads)
@@ -480,7 +480,8 @@ function BancoDeDadosPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<"firstSeenAt" | "name" | "lastSeenAt">("firstSeenAt");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -531,7 +532,7 @@ function BancoDeDadosPage() {
         city: filterCity,
         search: searchQuery,
         source: filterSource || undefined,
-        page,
+        page: 1,
         limit: LIMIT,
       });
       setItems(data.items || []);
@@ -542,7 +543,7 @@ function BancoDeDadosPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterState, filterCity, searchQuery, filterSource, page]);
+  }, [filterState, filterCity, searchQuery, filterSource]);
 
   useEffect(() => {
     loadStats();
@@ -550,7 +551,6 @@ function BancoDeDadosPage() {
 
   useEffect(() => {
     if (filterState && filterCity) {
-      setPage(1);
       loadProspects();
     } else {
       setItems([]);
@@ -561,17 +561,9 @@ function BancoDeDadosPage() {
     setFilterSource("");
   }, [filterState, filterCity, loadProspects]);
 
-  // Load prospects when page changes or search query changes (debounced/triggered manually)
-  useEffect(() => {
-    if (filterState && filterCity) {
-      loadProspects();
-    }
-  }, [page, loadProspects]);
-
   // Trigger search on Enter or Button click
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setPage(1);
     loadProspects();
   };
 
@@ -689,7 +681,7 @@ function BancoDeDadosPage() {
         limit: 5000,
       });
       
-      if (!data.items || data.items.length === 0) {
+      if (!data.items || data.sortedItems.length === 0) {
         toast.error("Nenhum prospect encontrado nesta cidade.");
         return;
       }
@@ -830,12 +822,24 @@ function BancoDeDadosPage() {
   const currentCityCount = currentStateData?.cities.find((c) => c.city === filterCity)?.count || 0;
   const stateLabel = STATES.find((s) => s.code === filterState)?.label || filterState;
 
-  const totalPages = Math.ceil(total / LIMIT);
 
   // Flat list of all cities in DB for import autocomplete
   const allCities = sortedStates.flatMap(([state, data]) =>
     data.cities.map(({ city }) => ({ state, city }))
   );
+
+  // Client-side sort
+  const sortedItems = [...items].sort((a, b) => {
+    let cmp = 0;
+    if (sortBy === "name") {
+      cmp = (a.name || "").localeCompare(b.name || "", "pt-BR");
+    } else {
+      const da = new Date(sortBy === "firstSeenAt" ? a.firstSeenAt : a.lastSeenAt).getTime();
+      const db2 = new Date(sortBy === "firstSeenAt" ? b.firstSeenAt : b.lastSeenAt).getTime();
+      cmp = da - db2;
+    }
+    return sortDir === "desc" ? -cmp : cmp;
+  });
 
   return (
     <AppShell>
@@ -1195,7 +1199,7 @@ function BancoDeDadosPage() {
                 ].map((src) => (
                   <button
                     key={src.id}
-                    onClick={() => { setFilterSource(src.id); setPage(1); }}
+                    onClick={() => { setFilterSource(src.id); }}
                     className={`px-3 py-1 rounded-full border text-xs font-medium transition-colors ${
                       filterSource === src.id
                         ? src.id === ""
@@ -1209,6 +1213,34 @@ function BancoDeDadosPage() {
                     }`}
                   >
                     {src.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sort controls */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground">Ordenar:</span>
+                {([
+                  { id: "firstSeenAt",  label: "Data de captura" },
+                  { id: "lastSeenAt", label: "Última vez visto" },
+                  { id: "name",       label: "Nome" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      if (sortBy === opt.id) setSortDir(d => d === "desc" ? "asc" : "desc");
+                      else { setSortBy(opt.id); setSortDir(opt.id === "name" ? "asc" : "desc"); }
+                    }}
+                    className={`px-3 py-1 rounded-full border text-xs font-medium transition-colors flex items-center gap-1 ${
+                      sortBy === opt.id
+                        ? "bg-muted border-foreground/30 text-foreground"
+                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                    {sortBy === opt.id && (
+                      <span className="text-[10px]">{sortDir === "desc" ? "↓" : "↑"}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1241,7 +1273,7 @@ function BancoDeDadosPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {items.map((prospect) => {
+                          {sortedItems.map((prospect) => {
                             const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
                             const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
                             const isSelected = selectedIds.has(prospect.id);
@@ -1312,7 +1344,7 @@ function BancoDeDadosPage() {
                           })}
                         </tbody>
                       </table>
-                      {items.length === 0 && (
+                      {sortedItems.length === 0 && (
                         <div className="py-16 text-center text-muted-foreground">Nenhum prospect encontrado nesta cidade.</div>
                       )}
                     </div>
@@ -1321,7 +1353,7 @@ function BancoDeDadosPage() {
                   {/* ── Grid view ── */}
                   {viewMode === "grid" && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4">
-                    {items.map((prospect) => {
+                    {sortedItems.map((prospect) => {
                       const initials = prospect.name.slice(0, 2).toUpperCase();
                       const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
                       const waUrl = phone ? `https://wa.me/${phone}` : null;
@@ -1431,7 +1463,7 @@ function BancoDeDadosPage() {
                       );
                     })}
 
-                    {items.length === 0 && (
+                    {sortedItems.length === 0 && (
                       <div className="col-span-full py-16 text-center text-muted-foreground bg-card/25 border border-dashed border-border rounded-2xl">
                         Nenhum prospect encontrado nesta cidade.
                       </div>
@@ -1439,30 +1471,6 @@ function BancoDeDadosPage() {
                   </div>
                   )} {/* end grid view */}
 
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-2 pt-6">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        disabled={page === 1}
-                      >
-                        Anterior
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        Página {page} de {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
-                      >
-                        Próxima
-                      </Button>
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -1479,7 +1487,7 @@ function BancoDeDadosPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setSelectedIds(new Set(items.map((p) => p.id)))}
+            onClick={() => setSelectedIds(new Set(sortedItems.map((p) => p.id)))}
             className="h-8 text-xs whitespace-nowrap"
           >
             Selecionar todos
