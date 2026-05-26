@@ -689,6 +689,43 @@ export function moveProspects(data: {
   });
 }
 
+export interface ProspectCrmInfo {
+  contact: {
+    id: string;
+    name: string | null;
+    botEnabled: boolean;
+    notes: string | null;
+    tags: string;
+    stage: { id: string; name: string; color: string } | null;
+    lastMessage: { text: string; fromMe: boolean; messageTimestamp: number } | null;
+    createdAt: string;
+  } | null;
+}
+
+export function fetchProspectCrmInfo(id: string) {
+  return scraperRequest<ProspectCrmInfo>(`/prospects/${encodeURIComponent(id)}/crm-info`);
+}
+
+export interface ImportRow {
+  name?: string;
+  nome?: string;
+  phone?: string;
+  telefone?: string;
+  whatsapp?: string;
+  [k: string]: string | undefined;
+}
+
+export function importProspects(data: {
+  rows: ImportRow[];
+  targetCity: string;
+  targetState: string;
+}) {
+  return scraperRequest<{ ok: boolean; created: number; updated: number; skipped: number }>(
+    "/prospects/import",
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
 // ─── Rotinas de Captura Agendada ──────────────────────────────────────────────
 
 export interface ProspectRoutine {

@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import {
   Folder, FolderOpen, ChevronRight, Search,
   Database, Wifi, Building2, Globe, ArrowLeft, Home, FileSpreadsheet,
   RefreshCw, MessageCircle, MapPin, Square, Trash2, CheckSquare,
-  FolderInput, AlertTriangle, X
+  FolderInput, AlertTriangle, X, LayoutList, LayoutGrid, Upload,
+  FolderPlus, Bot, Tag, Calendar, ExternalLink, UserCircle2, Phone,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -12,9 +14,11 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Prospect, ProspectStats, ScrapeJobState, MoveConflict,
+  ProspectCrmInfo, ImportRow,
   fetchProspects, fetchProspectStats,
   triggerScrape, fetchScrapeStatus, stopScrape,
   deleteProspects, previewMoveProspects, moveProspects,
+  fetchProspectCrmInfo, importProspects,
 } from "@/lib/evolution-api";
 import { ScrapeLiveFeed } from "@/components/ScrapeLiveFeed";
 
@@ -77,6 +81,392 @@ function SourceBadge({ source, href }: { source: string; href?: string }) {
   );
 }
 
+// ─── Brazilian cities autocomplete list (major cities per state) ──────────
+const BR_CITIES: { state: string; cities: string[] }[] = [
+  { state: "RN", cities: ["Natal","Mossoró","Parnamirim","Caicó","Açu","Currais Novos","São Gonçalo do Amarante","Macaíba"] },
+  { state: "CE", cities: ["Fortaleza","Caucaia","Juazeiro do Norte","Maracanaú","Sobral","Crato","Itapipoca","Maranguape","Iguatu"] },
+  { state: "PB", cities: ["João Pessoa","Campina Grande","Santa Rita","Patos","Bayeux","Sousa","Cajazeiras","Guarabira"] },
+  { state: "PE", cities: ["Recife","Olinda","Caruaru","Petrolina","Jaboatão dos Guararapes","Paulista","Cabo de Santo Agostinho","Caruaru"] },
+  { state: "AL", cities: ["Maceió","Arapiraca","Rio Largo","Palmeira dos Índios","União dos Palmares","Penedo"] },
+  { state: "BA", cities: ["Salvador","Feira de Santana","Vitória da Conquista","Camaçari","Itabuna","Juazeiro","Ilhéus","Lauro de Freitas"] },
+  { state: "SP", cities: ["São Paulo","Campinas","Santos","Guarulhos","São Bernardo do Campo","Santo André","Osasco","Ribeirão Preto","São José dos Campos","Sorocaba","São José do Rio Preto","Mauá","São Caetano do Sul","Bauru","Jundiaí"] },
+  { state: "RJ", cities: ["Rio de Janeiro","Niterói","Duque de Caxias","Nova Iguaçu","Belford Roxo","São João de Meriti","Campos dos Goytacazes","Petrópolis","Volta Redonda","Macaé"] },
+  { state: "MG", cities: ["Belo Horizonte","Uberlândia","Contagem","Juiz de Fora","Betim","Montes Claros","Ribeirão das Neves","Uberaba","Governador Valadares"] },
+  { state: "PR", cities: ["Curitiba","Londrina","Maringá","Ponta Grossa","Cascavel","São José dos Pinhais","Foz do Iguaçu","Colombo","Guarapuava"] },
+  { state: "SC", cities: ["Florianópolis","Joinville","Blumenau","São José","Chapecó","Itajaí","Criciúma","Jaraguá do Sul","Palhoça"] },
+  { state: "RS", cities: ["Porto Alegre","Caxias do Sul","Canoas","Pelotas","Santa Maria","Gravataí","Viamão","Novo Hamburgo","São Leopoldo"] },
+];
+
+// ─── Contact Popup ────────────────────────────────────────────────────────
+
+function ContactPopup({
+  prospect,
+  onClose,
+}: {
+  prospect: Prospect;
+  onClose: () => void;
+}) {
+  const [crmInfo, setCrmInfo] = useState<ProspectCrmInfo | null>(null);
+  const [crmLoading, setCrmLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProspectCrmInfo(prospect.id)
+      .then((data) => setCrmInfo(data))
+      .catch(() => setCrmInfo(null))
+      .finally(() => setCrmLoading(false));
+  }, [prospect.id]);
+
+  const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
+  const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
+  const initials = prospect.name.slice(0, 2).toUpperCase();
+  const contact = crmInfo?.contact;
+
+  const stageColors: Record<string, string> = {
+    "#3b82f6": "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    "#10b981": "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    "#f59e0b": "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    "#ef4444": "bg-red-500/20 text-red-300 border-red-500/30",
+    "#8b5cf6": "bg-violet-500/20 text-violet-300 border-violet-500/30",
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+        {/* Header with photo */}
+        <div className="relative">
+          {prospect.thumbUrl ? (
+            <img src={prospect.thumbUrl} alt={prospect.name} className="w-full h-40 object-cover" />
+          ) : (
+            <div className="w-full h-32 bg-gradient-to-br from-violet-500/20 to-emerald-500/10 flex items-center justify-center">
+              <span className="text-4xl font-bold text-white/30">{initials}</span>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <div className="absolute bottom-3 left-4">
+            <h2 className="font-bold text-lg leading-tight">{prospect.name}</h2>
+            {phone && <p className="text-xs text-emerald-400 font-mono">{phone}</p>}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="p-4 space-y-3">
+          {/* Basic info row */}
+          <div className="flex flex-wrap gap-2 text-xs">
+            {prospect.city && (
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <MapPin className="h-3 w-3" /> {prospect.city}{prospect.state ? ` / ${prospect.state}` : ""}
+              </span>
+            )}
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Calendar className="h-3 w-3" /> Captado {new Date(prospect.firstSeenAt).toLocaleDateString("pt-BR")}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-1">
+            {prospect.sources.map((s) => (
+              <SourceBadge key={s} source={s} href={prospect.sourceUrls?.[s]} />
+            ))}
+          </div>
+
+          <div className="border-t border-border/60 pt-3">
+            {crmLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+                <RefreshCw className="h-3 w-3 animate-spin" /> Verificando CRM…
+              </div>
+            ) : contact ? (
+              <div className="space-y-2.5">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">No CRM</p>
+                {contact.stage && (
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${stageColors[contact.stage.color] || "bg-muted text-muted-foreground border-border"}`}>
+                      {contact.stage.name}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Bot className="h-3 w-3" /> Bot {contact.botEnabled ? "ativo" : "inativo"}
+                  </span>
+                  {contact.tags && contact.tags !== "" && (
+                    <span className="flex items-center gap-1">
+                      <Tag className="h-3 w-3" /> {contact.tags}
+                    </span>
+                  )}
+                </div>
+                {contact.lastMessage && (
+                  <div className="bg-muted/40 border border-border rounded-lg px-3 py-2 text-xs">
+                    <p className="text-muted-foreground text-[10px] mb-0.5">
+                      Última msg · {contact.lastMessage.fromMe ? "Você" : "Contato"}
+                    </p>
+                    <p className="truncate">{contact.lastMessage.text}</p>
+                  </div>
+                )}
+                {contact.notes && (
+                  <p className="text-xs text-muted-foreground italic line-clamp-2">{contact.notes}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Ainda não está no CRM.</p>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
+            {waUrl && (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-medium transition-colors"
+              >
+                <MessageCircle className="h-4 w-4" /> WhatsApp
+              </a>
+            )}
+            {contact && (
+              <a
+                href="/crm"
+                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors"
+              >
+                <ExternalLink className="h-4 w-4" /> Abrir no CRM
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Import Modal ─────────────────────────────────────────────────────────
+
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const delim = lines[0].includes(";") ? ";" : ",";
+  const headers = lines[0].split(delim).map((h) => h.replace(/^"|"$/g, "").trim().toLowerCase());
+  return lines.slice(1).map((line) => {
+    const vals = line.split(delim).map((v) => v.replace(/^"|"$/g, "").trim());
+    return Object.fromEntries(headers.map((h, i) => [h, vals[i] || ""]));
+  });
+}
+
+function ImportModal({
+  onClose,
+  onImported,
+  allCities,
+  currentState,
+  currentCity,
+}: {
+  onClose: () => void;
+  onImported: (created: number, updated: number) => void;
+  allCities: { state: string; city: string }[];
+  currentState: string;
+  currentCity: string;
+}) {
+  const [rows, setRows] = useState<ImportRow[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [targetState, setTargetState] = useState(currentState);
+  const [targetCity, setTargetCity] = useState(currentCity);
+  const [cityInput, setCityInput] = useState(currentCity);
+  const [importing, setImporting] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const citySuggestions = [
+    ...new Set([
+      ...allCities.filter((c) => c.state === targetState).map((c) => c.city),
+      ...(BR_CITIES.find((s) => s.state === targetState)?.cities || []),
+    ]),
+  ].sort();
+
+  const processFile = (file: File) => {
+    setFileName(file.name);
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json<ImportRow>(ws, { defval: "" });
+        setRows(json.slice(0, 2000));
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => setRows(parseCSV(e.target?.result as string).slice(0, 2000));
+      reader.readAsText(file, "utf-8");
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  };
+
+  const handleConfirm = async () => {
+    if (!targetState || !targetCity || rows.length === 0) return;
+    setImporting(true);
+    try {
+      const res = await importProspects({ rows, targetCity, targetState });
+      onImported(res.created, res.updated);
+    } catch {
+      toast.error("Erro ao importar contatos");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const previewCols = rows[0] ? Object.keys(rows[0]).slice(0, 5) : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+          <div className="flex items-center gap-2">
+            <Upload className="h-5 w-5 text-emerald-400" />
+            <h2 className="font-semibold text-base">Importar contatos</h2>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+          {/* Drop zone */}
+          {rows.length === 0 ? (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => inputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragOver ? "border-emerald-500 bg-emerald-500/5" : "border-border hover:border-emerald-500/50 hover:bg-muted/20"}`}
+            >
+              <Upload className="h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground text-center">
+                Arraste um arquivo <span className="font-semibold text-foreground">.CSV</span> ou <span className="font-semibold text-foreground">.XLSX</span> aqui<br />
+                <span className="text-xs">ou clique para selecionar</span>
+              </p>
+              <p className="text-[10px] text-muted-foreground/60 text-center">Colunas reconhecidas: nome / name, telefone / phone / whatsapp</p>
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }}
+              />
+            </div>
+          ) : (
+            <>
+              {/* File info + reset */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm">
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                  <span className="font-medium">{fileName}</span>
+                  <span className="text-muted-foreground">· {rows.length} linhas</span>
+                </div>
+                <button
+                  onClick={() => { setRows([]); setFileName(""); }}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Trocar arquivo
+                </button>
+              </div>
+
+              {/* Preview table */}
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40">
+                      {previewCols.map((col) => (
+                        <th key={col} className="text-left px-3 py-2 font-medium text-muted-foreground">{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.slice(0, 5).map((row, i) => (
+                      <tr key={i} className="border-b border-border/50 last:border-0">
+                        {previewCols.map((col) => (
+                          <td key={col} className="px-3 py-1.5 truncate max-w-[140px]">{String(row[col] ?? "")}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {rows.length > 5 && (
+                  <p className="text-[10px] text-muted-foreground px-3 py-1.5 bg-muted/20">
+                    … e mais {rows.length - 5} linhas
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Destination */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado destino</label>
+              <select
+                value={targetState}
+                onChange={(e) => { setTargetState(e.target.value); setCityInput(""); setTargetCity(""); }}
+                className="w-full h-10 rounded-lg border border-border bg-muted/40 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              >
+                <option value="">Selecione…</option>
+                {["RN","CE","PB","PE","AL","BA","SP","RJ","MG","PR","SC","RS"].map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta (cidade)</label>
+              <div className="relative">
+                <input
+                  list="city-suggestions"
+                  value={cityInput}
+                  onChange={(e) => { setCityInput(e.target.value); setTargetCity(e.target.value); }}
+                  placeholder="Ex: Natal"
+                  disabled={!targetState}
+                  className="w-full h-10 rounded-lg border border-border bg-muted/40 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
+                />
+                <datalist id="city-suggestions">
+                  {citySuggestions.map((c) => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-border flex justify-end gap-2 shrink-0">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancelar</Button>
+          <Button
+            size="sm"
+            disabled={rows.length === 0 || !targetState || !targetCity || importing}
+            onClick={handleConfirm}
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {importing
+              ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Importando…</>
+              : <><Upload className="h-3.5 w-3.5" /> Importar {rows.length} contato{rows.length !== 1 ? "s" : ""}</>
+            }
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const LIMIT = 32;
 
 function BancoDeDadosPage() {
@@ -93,6 +483,21 @@ function BancoDeDadosPage() {
   const [page, setPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // View mode: persisted in localStorage
+  const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
+    try { return (localStorage.getItem("db-view-mode") as "list" | "grid") || "list"; } catch { return "list"; }
+  });
+  const setAndPersistViewMode = (mode: "list" | "grid") => {
+    setViewMode(mode);
+    try { localStorage.setItem("db-view-mode", mode); } catch {}
+  };
+
+  // Contact popup
+  const [popupProspect, setPopupProspect] = useState<Prospect | null>(null);
+
+  // Import modal
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Move modal state
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -422,6 +827,11 @@ function BancoDeDadosPage() {
 
   const totalPages = Math.ceil(total / LIMIT);
 
+  // Flat list of all cities in DB for import autocomplete
+  const allCities = sortedStates.flatMap(([state, data]) =>
+    data.cities.map(({ city }) => ({ state, city }))
+  );
+
   return (
     <AppShell>
       <div className="h-full overflow-y-auto">
@@ -555,21 +965,33 @@ function BancoDeDadosPage() {
                   Cidades em {stateLabel} ({filterState})
                 </h2>
 
-                {/* Botão Stop — só aparece quando há raspagem em andamento */}
-                {refreshingKey && (
+                <div className="ml-auto flex items-center gap-2">
                   <Button
-                    variant="destructive"
+                    variant="outline"
                     size="sm"
-                    onClick={handleStop}
-                    disabled={isStopping}
-                    className="ml-auto h-7 px-3 text-xs gap-1.5"
+                    onClick={() => setShowImportModal(true)}
+                    className="h-7 px-3 text-xs gap-1.5"
                   >
-                    {isStopping
-                      ? <RefreshCw className="h-3 w-3 animate-spin" />
-                      : <Square className="h-3 w-3 fill-current" />}
-                    {isStopping ? "Parando…" : "Parar raspagem"}
+                    <FolderPlus className="h-3.5 w-3.5" />
+                    Nova pasta
                   </Button>
-                )}
+
+                  {/* Botão Stop — só aparece quando há raspagem em andamento */}
+                  {refreshingKey && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleStop}
+                      disabled={isStopping}
+                      className="h-7 px-3 text-xs gap-1.5"
+                    >
+                      {isStopping
+                        ? <RefreshCw className="h-3 w-3 animate-spin" />
+                        : <Square className="h-3 w-3 fill-current" />}
+                      {isStopping ? "Parando…" : "Parar raspagem"}
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -725,23 +1147,146 @@ function BancoDeDadosPage() {
                     className={`gap-2 h-9 ${selectionMode ? "bg-violet-600 hover:bg-violet-700 text-white border-violet-600" : ""}`}
                   >
                     <CheckSquare className="h-4 w-4" />
-                    {selectionMode ? "Cancelar seleção" : "Selecionar"}
+                    {selectionMode ? "Cancelar" : "Selecionar"}
                   </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowImportModal(true)}
+                    className="gap-2 h-9"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Importar
+                  </Button>
+
+                  {/* View mode toggle */}
+                  <div className="flex border border-border rounded-lg overflow-hidden h-9">
+                    <button
+                      onClick={() => setAndPersistViewMode("list")}
+                      title="Visualização lista"
+                      className={`px-2.5 flex items-center transition-colors ${viewMode === "list" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <LayoutList className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setAndPersistViewMode("grid")}
+                      title="Visualização grade"
+                      className={`px-2.5 flex items-center transition-colors border-l border-border ${viewMode === "grid" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Live activity feed — só aparece durante raspagem desta cidade */}
               <ScrapeLiveFeed jobState={scrapeJobState} city={filterCity} />
 
-              {/* Grid of Leads */}
+              {/* Leads — list or grid */}
               {loading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4 py-8">
+                <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4 py-8" : "space-y-2 py-4"}>
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="aspect-[4/5] bg-card/50 border border-border animate-pulse rounded-xl" />
+                    <div key={i} className={viewMode === "grid" ? "aspect-[4/5] bg-card/50 border border-border animate-pulse rounded-xl" : "h-12 bg-card/50 border border-border animate-pulse rounded-lg"} />
                   ))}
                 </div>
               ) : (
                 <>
+                  {/* ── List view ── */}
+                  {viewMode === "list" && (
+                    <div className="rounded-xl border border-border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
+                            {selectionMode && <th className="w-9 px-3 py-2.5" />}
+                            <th className="text-left px-3 py-2.5 font-medium w-8" />
+                            <th className="text-left px-3 py-2.5 font-medium">Nome</th>
+                            <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Telefone</th>
+                            <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Portais</th>
+                            <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Captado</th>
+                            <th className="w-9 px-3 py-2.5" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((prospect) => {
+                            const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
+                            const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
+                            const isSelected = selectedIds.has(prospect.id);
+                            const initials = prospect.name.slice(0, 2).toUpperCase();
+                            const toggleSelect = () => setSelectedIds((prev) => {
+                              const next = new Set(prev); next.has(prospect.id) ? next.delete(prospect.id) : next.add(prospect.id); return next;
+                            });
+                            return (
+                              <tr
+                                key={prospect.id}
+                                onClick={selectionMode ? toggleSelect : () => setPopupProspect(prospect)}
+                                className={`border-b border-border/50 last:border-0 cursor-pointer transition-colors ${
+                                  isSelected && selectionMode ? "bg-violet-500/10" : "hover:bg-muted/30"
+                                }`}
+                              >
+                                {selectionMode && (
+                                  <td className="px-3 py-2">
+                                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${isSelected ? "bg-violet-500 border-violet-500" : "border-muted-foreground/40"}`}>
+                                      {isSelected && <CheckSquare className="h-3 w-3 text-white" />}
+                                    </div>
+                                  </td>
+                                )}
+                                <td className="px-3 py-2">
+                                  {prospect.thumbUrl ? (
+                                    <img src={prospect.thumbUrl} alt="" className="w-7 h-7 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">{initials}</div>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span className="font-medium truncate block max-w-[180px]">{prospect.name}</span>
+                                  {prospect.sources.length >= 2 && (
+                                    <span className="text-[9px] text-primary font-bold">{prospect.sources.length}× portais</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 hidden sm:table-cell">
+                                  {phone ? (
+                                    <span className="text-xs text-emerald-400 font-mono">{phone}</span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground/40 italic">–</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 hidden md:table-cell">
+                                  <div className="flex flex-wrap gap-0.5">
+                                    {prospect.sources.map((s) => (
+                                      <SourceBadge key={s} source={s} href={prospect.sourceUrls?.[s]} />
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2 hidden lg:table-cell text-xs text-muted-foreground">
+                                  {new Date(prospect.firstSeenAt).toLocaleDateString("pt-BR")}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {waUrl && !selectionMode && (
+                                    <a
+                                      href={waUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-7 h-7 rounded-full bg-[#25D366] hover:bg-[#1ebe5d] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <MessageCircle className="h-3.5 w-3.5 text-white" />
+                                    </a>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {items.length === 0 && (
+                        <div className="py-16 text-center text-muted-foreground">Nenhum prospect encontrado nesta cidade.</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Grid view ── */}
+                  {viewMode === "grid" && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4">
                     {items.map((prospect) => {
                       const initials = prospect.name.slice(0, 2).toUpperCase();
@@ -758,12 +1303,12 @@ function BancoDeDadosPage() {
                               else next.add(prospect.id);
                               return next;
                             });
-                          } : undefined}
-                          className={`group relative bg-card rounded-xl overflow-hidden shadow-sm transition-all duration-200 border ${
+                          } : () => setPopupProspect(prospect)}
+                          className={`group relative bg-card rounded-xl overflow-hidden shadow-sm transition-all duration-200 border cursor-pointer ${
                             selectionMode
                               ? isSelected
-                                ? "border-violet-500 ring-2 ring-violet-500/30 cursor-pointer"
-                                : "border-border hover:border-violet-400/50 cursor-pointer"
+                                ? "border-violet-500 ring-2 ring-violet-500/30"
+                                : "border-border hover:border-violet-400/50"
                               : "border-border hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5"
                           }`}
                         >
@@ -859,6 +1404,7 @@ function BancoDeDadosPage() {
                       </div>
                     )}
                   </div>
+                  )} {/* end grid view */}
 
                   {/* Pagination */}
                   {totalPages > 1 && (
@@ -1080,6 +1626,30 @@ function BancoDeDadosPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Contact popup */}
+      {popupProspect && (
+        <ContactPopup
+          prospect={popupProspect}
+          onClose={() => setPopupProspect(null)}
+        />
+      )}
+
+      {/* Import modal */}
+      {showImportModal && (
+        <ImportModal
+          onClose={() => setShowImportModal(false)}
+          onImported={(created, updated) => {
+            setShowImportModal(false);
+            toast.success(`Importação concluída: ${created} novo${created !== 1 ? "s" : ""}, ${updated} atualizado${updated !== 1 ? "s" : ""}`);
+            loadStats();
+            if (filterState && filterCity) loadProspects();
+          }}
+          allCities={allCities}
+          currentState={filterState}
+          currentCity={filterCity}
+        />
       )}
     </AppShell>
   );
