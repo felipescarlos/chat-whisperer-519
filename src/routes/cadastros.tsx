@@ -233,7 +233,14 @@ function ContactPopup({ prospect, onClose }: { prospect: Prospect; onClose: () =
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Situação no site</p>
-                <AdStatusBadge status={prospect.adStatus} />
+                <div className="flex items-center gap-2">
+                  {prospect.adId != null && (
+                    <span className="text-[10px] font-mono text-muted-foreground bg-muted/50 border border-border/60 rounded px-1.5 py-0.5">
+                      #{prospect.adId}
+                    </span>
+                  )}
+                  <AdStatusBadge status={prospect.adStatus} />
+                </div>
               </div>
               {adUrls.length > 0 ? (
                 <div className="space-y-1.5">

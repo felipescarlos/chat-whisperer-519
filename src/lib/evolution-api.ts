@@ -583,6 +583,7 @@ export interface Prospect {
   importedContactId: string | null;
   email: string | null;
   adStatus: number | null;
+  adId: number | null;
   firstSeenAt: string;
   lastSeenAt: string;
   crmContact: ProspectCrmContact | null;
