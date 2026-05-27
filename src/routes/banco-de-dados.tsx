@@ -1100,8 +1100,8 @@ function BancoDeDadosPage() {
     if (cadFilterStages.length > 0 && !cadFilterStages.includes(p.crmContact?.stage?.name || "")) return false;
     if (cadFilterHasPhone && !p.whatsappE164) return false;
     if (cadFilterHasCrm && !p.crmContact) return false;
-    if (cadFilterHasAd === "yes" && !Object.values(p.sourceUrls || {}).some(u => !!u)) return false;
-    if (cadFilterHasAd === "no" && Object.values(p.sourceUrls || {}).some(u => !!u)) return false;
+    if (cadFilterHasAd === "yes" && p.adStatus !== 1) return false;
+    if (cadFilterHasAd === "no" && p.adStatus === 1) return false;
     return true;
   }), [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm, cadFilterHasAd]);
   const cadActiveFilterCount = cadFilterStates.length + cadFilterStages.length + (cadFilterHasPhone ? 1 : 0) + (cadFilterHasCrm ? 1 : 0) + (cadFilterHasAd ? 1 : 0);
