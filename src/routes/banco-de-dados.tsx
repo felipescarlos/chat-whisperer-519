@@ -720,7 +720,7 @@ function BancoDeDadosPage() {
         limit: 5000,
       });
       
-      if (!data.items || data.sortedItems.length === 0) {
+      if (!data.items || data.items.length === 0) {
         toast.error("Nenhum prospect encontrado nesta cidade.");
         return;
       }
