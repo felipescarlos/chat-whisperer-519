@@ -487,6 +487,9 @@ function ImportModal({
 const LIMIT = 2000;
 
 function BancoDeDadosPage() {
+  // Active tab
+  const [activeTab, setActiveTab] = useState<"scraper" | "cadastros" | "conversoes">("scraper");
+
   // Navigation Path: "" (Root/States) -> "STATE_CODE" (Cities) -> "STATE_CODE/CITY" (Leads)
   const [filterState, setFilterState] = useState("");
   const [filterCity, setFilterCity] = useState("");
@@ -545,11 +548,12 @@ function BancoDeDadosPage() {
     if (!filterState || !filterCity) return;
     setLoading(true);
     try {
+      const tabSource = activeTab === "cadastros" ? "picjob_site" : (filterSource || undefined);
       const data = await fetchProspects({
-        state: filterState,
-        city: filterCity,
+        state: filterState === "SEM_ESTADO" ? "" : filterState,
+        city: filterCity === "Sem cidade" ? "" : filterCity,
         search: searchQuery,
-        source: filterSource || undefined,
+        source: tabSource,
         page: 1,
         limit: LIMIT,
       });
@@ -561,7 +565,7 @@ function BancoDeDadosPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterState, filterCity, searchQuery, filterSource]);
+  }, [filterState, filterCity, searchQuery, filterSource, activeTab]);
 
   useEffect(() => {
     loadStats();
@@ -866,8 +870,22 @@ function BancoDeDadosPage() {
     data.cities.map(({ city }) => ({ state, city }))
   );
 
-  // Client-side sort
-  const sortedItems = [...items].sort((a, b) => {
+  // Reset navigation on tab change
+  const handleTabChange = (tab: "scraper" | "cadastros" | "conversoes") => {
+    setActiveTab(tab);
+    setFilterState("");
+    setFilterCity("");
+    setFilterSource("");
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  // Client-side sort + tab filter
+  const sortedItems = [...items].filter((p) => {
+    if (activeTab === "scraper") return !p.sources.includes("picjob_site");
+    if (activeTab === "cadastros") return p.sources.includes("picjob_site");
+    return true;
+  }).sort((a, b) => {
     let cmp = 0;
     if (sortBy === "name") {
       cmp = (a.name || "").localeCompare(b.name || "", "pt-BR");
@@ -896,19 +914,47 @@ function BancoDeDadosPage() {
             </div>
           </div>
 
+          {/* Tabs */}
+          <div className="flex gap-1 bg-muted/40 border border-border rounded-xl p-1">
+            {([
+              { id: "scraper",    label: "Scraper",    desc: "Leads raspados" },
+              { id: "cadastros",  label: "Cadastros",  desc: "Site PicJob" },
+              { id: "conversoes", label: "Conversões", desc: "Cruzamento" },
+            ] as const).map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={`flex-1 flex flex-col items-center py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab.id
+                    ? tab.id === "scraper"
+                      ? "bg-card border border-border shadow-sm text-foreground"
+                      : tab.id === "cadastros"
+                      ? "bg-blue-500/10 border border-blue-500/30 text-blue-300"
+                      : "bg-emerald-500/10 border border-emerald-500/30 text-emerald-300"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className="text-[10px] font-normal opacity-60">{tab.desc}</span>
+              </button>
+            ))}
+          </div>
+
           {/* Stats Cards Banner */}
-          {stats && !filterState && (
+          {stats && !filterState && activeTab !== "conversoes" && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: "Total de Leads", value: stats.total, icon: Database, color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+              {activeTab === "scraper" ? [
+                { label: "Total Scraper", value: (stats.bySource.fatalmodel || 0) + (stats.bySource.fotoacomp || 0) + (stats.bySource.skokka || 0), icon: Database, color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
                 { label: "Com WhatsApp", value: stats.withPhone, icon: Wifi, color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-                { label: "Fatal Model", value: stats.bySource.fatalmodel, icon: Globe, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
-                { label: "Skokka", value: stats.bySource.skokka, icon: Globe, color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 shadow-sm relative overflow-hidden"
-                >
+                { label: "Fatal Model", value: stats.bySource.fatalmodel || 0, icon: Globe, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
+                { label: "Skokka", value: stats.bySource.skokka || 0, icon: Globe, color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
+              ] : [
+                { label: "Total Cadastros", value: stats.bySource.picjob_site || 0, icon: Database, color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+                { label: "Com WhatsApp", value: stats.withPhone, icon: Wifi, color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+                { label: "Fatal Model", value: stats.bySource.fatalmodel || 0, icon: Globe, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
+                { label: "PhotoAcomp", value: stats.bySource.fotoacomp || 0, icon: Globe, color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
+              ]}.map((s) => (
+                <div key={s.label} className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">{s.label}</span>
                     <s.icon className={`h-4 w-4 ${s.color.split(" ")[0]}`} />
@@ -921,8 +967,44 @@ function BancoDeDadosPage() {
             </div>
           )}
 
+          {/* Conversões Tab Content */}
+          {activeTab === "conversoes" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-card border border-border rounded-xl p-5 space-y-1">
+                  <span className="text-xs text-muted-foreground">Leads raspados</span>
+                  <p className="text-3xl font-bold text-violet-400">
+                    {((stats?.bySource.fatalmodel || 0) + (stats?.bySource.fotoacomp || 0) + (stats?.bySource.skokka || 0)).toLocaleString("pt-BR")}
+                  </p>
+                  <span className="text-xs text-muted-foreground">FatalModel + PhotoAcomp + Skokka</span>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-5 space-y-1">
+                  <span className="text-xs text-muted-foreground">Cadastros no site</span>
+                  <p className="text-3xl font-bold text-blue-400">
+                    {(stats?.bySource.picjob_site || 0).toLocaleString("pt-BR")}
+                  </p>
+                  <span className="text-xs text-muted-foreground">Usuários registrados no PicJob</span>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-5 space-y-1">
+                  <span className="text-xs text-muted-foreground">Taxa de conversão estimada</span>
+                  <p className="text-3xl font-bold text-emerald-400">
+                    {stats && (stats.bySource.fatalmodel + stats.bySource.fotoacomp + stats.bySource.skokka) > 0
+                      ? (((stats.bySource.picjob_site || 0) / (stats.bySource.fatalmodel + stats.bySource.fotoacomp + stats.bySource.skokka)) * 100).toFixed(1) + "%"
+                      : "–"}
+                  </p>
+                  <span className="text-xs text-muted-foreground">Cadastros / leads raspados</span>
+                </div>
+              </div>
+              <div className="bg-card border border-border/60 border-dashed rounded-xl p-8 text-center space-y-2">
+                <UserCircle2 className="h-10 w-10 text-muted-foreground/30 mx-auto" />
+                <p className="text-sm font-medium text-muted-foreground">Cruzamento individual em breve</p>
+                <p className="text-xs text-muted-foreground/60">Vai mostrar quais números do scraper se cadastraram no PicJob, com data e funil completo.</p>
+              </div>
+            </div>
+          )}
+
           {/* Breadcrumbs Navigation */}
-          <div className="bg-card/30 backdrop-blur-md border border-border/50 rounded-xl p-3 flex items-center gap-2 text-sm">
+          {activeTab !== "conversoes" && <div className="bg-card/30 backdrop-blur-md border border-border/50 rounded-xl p-3 flex items-center gap-2 text-sm">
             <button
               onClick={() => {
                 setFilterState("");
@@ -952,10 +1034,10 @@ function BancoDeDadosPage() {
                 <span className="text-foreground font-semibold">{filterCity}</span>
               </>
             )}
-          </div>
+          </div>}
 
           {/* Root Level: Show States Folders */}
-          {!filterState && (
+          {activeTab !== "conversoes" && !filterState && (
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Pastas de Estados
@@ -997,7 +1079,7 @@ function BancoDeDadosPage() {
           )}
 
           {/* Level 2: Show Cities Folders inside State */}
-          {filterState && !filterCity && (
+          {activeTab !== "conversoes" && filterState && !filterCity && (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <Button
@@ -1100,6 +1182,7 @@ function BancoDeDadosPage() {
           )}
 
           {/* Level 3: Show Prospects list/grid inside City */}
+          {/* (activeTab guard handled by breadcrumb/folder guards above) */}
           {filterState && filterCity && (
             <div className="space-y-4">
               {/* Search & Export Toolbar */}
