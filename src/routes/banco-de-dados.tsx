@@ -952,8 +952,8 @@ function BancoDeDadosPage() {
     if (cadFilterStages.length > 0 && !cadFilterStages.includes(p.crmContact?.stage?.name || "")) return false;
     if (cadFilterHasPhone && !p.whatsappE164) return false;
     if (cadFilterHasCrm && !p.crmContact) return false;
-    if (cadFilterHasAd === "yes" && !Object.values(p.sourceUrls || {}).some(u => u.includes("/acompanhantes/"))) return false;
-    if (cadFilterHasAd === "no" && Object.values(p.sourceUrls || {}).some(u => u.includes("/acompanhantes/"))) return false;
+    if (cadFilterHasAd === "yes" && !Object.values(p.sourceUrls || {}).some(u => !!u)) return false;
+    if (cadFilterHasAd === "no" && Object.values(p.sourceUrls || {}).some(u => !!u)) return false;
     return true;
   }), [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm, cadFilterHasAd]);
   const cadActiveFilterCount = cadFilterStates.length + cadFilterStages.length + (cadFilterHasPhone ? 1 : 0) + (cadFilterHasCrm ? 1 : 0) + (cadFilterHasAd ? 1 : 0);
@@ -1490,7 +1490,7 @@ function BancoDeDadosPage() {
 
                             {/* Anúncios ativos */}
                             <td className="px-3 py-2.5 hidden lg:table-cell text-center">
-                              {Object.values(prospect.sourceUrls || {}).some(u => u.includes("/acompanhantes/")) ? (
+                              {Object.values(prospect.sourceUrls || {}).some(u => !!u) ? (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
                                   Ativo
                                 </span>
