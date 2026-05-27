@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { MessageCircle, Smartphone, Send, History, Settings, LogOut, LayoutDashboard, Trello, Radio, Database, Sun, Moon } from "lucide-react";
+import { MessageCircle, Smartphone, Send, History, Settings, LogOut, LayoutDashboard, Trello, Radio, Database, Users, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth";
 import { useTheme } from "@/hooks/use-theme";
@@ -11,7 +11,8 @@ const items = [
   { to: "/chips", label: "Chips", icon: Smartphone },
   { to: "/disparos", label: "Disparos", icon: Send },
   { to: "/radar", label: "Radar", icon: Radio },
-  { to: "/banco-de-dados", label: "Dados", icon: Database },
+  { to: "/banco-de-dados", label: "Scraper", icon: Database },
+  { to: "/cadastros", label: "Cadastros", icon: Users },
   { to: "/historico", label: "Histórico", icon: History },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/configuracoes", label: "Config", icon: Settings },

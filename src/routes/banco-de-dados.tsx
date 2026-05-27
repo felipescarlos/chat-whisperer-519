@@ -104,22 +104,6 @@ function AdStatusBadge({ status }: { status: number | null | undefined }) {
   );
 }
 
-// ─── Origin badge ─────────────────────────────────────────────────────────────
-function OriginBadge({ hasCrm }: { hasCrm: boolean }) {
-  if (hasCrm) {
-    return (
-      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap bg-violet-500/15 text-violet-400 border-violet-500/30">
-        Via WhatsApp
-      </span>
-    );
-  }
-  return (
-    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap bg-teal-500/15 text-teal-400 border-teal-500/30">
-      Orgânico
-    </span>
-  );
-}
-
 // ─── Brazilian cities autocomplete list (major cities per state) ──────────
 const BR_CITIES: { state: string; cities: string[] }[] = [
   { state: "RN", cities: ["Natal","Mossoró","Parnamirim","Caicó","Açu","Currais Novos","São Gonçalo do Amarante","Macaíba"] },
@@ -274,22 +258,10 @@ function ContactPopup({
                 </div>
               </div>
 
-              {/* Coluna direita — origem e datas */}
+              {/* Coluna direita — datas */}
               <div className="space-y-3">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Origem</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Datas</p>
                 <div className="space-y-2">
-                  <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">Canal de entrada</p>
-                      <p className="text-sm font-medium mt-0.5">
-                        {contact ? "Via WhatsApp" : "Orgânico"}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                        {contact ? "Abordado pelo CRM" : "Provavelmente via Google"}
-                      </p>
-                    </div>
-                    <OriginBadge hasCrm={!!contact} />
-                  </div>
                   <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
                     <p className="text-[10px] text-muted-foreground">Cadastrado em</p>
                     <p className="text-sm font-medium">{new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>
@@ -669,9 +641,6 @@ function ImportModal({
 const LIMIT = 2000;
 
 function BancoDeDadosPage() {
-  // Active tab
-  const [activeTab, setActiveTab] = useState<"scraper" | "cadastros">("scraper");
-
   // Navigation Path: "" (Root/States) -> "STATE_CODE" (Cities) -> "STATE_CODE/CITY" (Leads)
   const [filterState, setFilterState] = useState("");
   const [filterCity, setFilterCity] = useState("");
@@ -679,30 +648,6 @@ function BancoDeDadosPage() {
   // Data
   const [stats, setStats] = useState<ProspectStats | null>(null);
 
-  // Cadastros flat list state
-  const [cadastrosItems, setCadastrosItems] = useState<Prospect[]>([]);
-  const [cadastrosTotal, setCadastrosTotal] = useState(0);
-  const [cadastrosPage, setCadastrosPage] = useState(1);
-  const [cadastrosLoading, setCadastrosLoading] = useState(false);
-  const [cadastrosSearch, setCadastrosSearch] = useState("");
-
-  // Cadastros filters
-  const [showCadFilters, setShowCadFilters] = useState(false);
-  const [cadFilterStates, setCadFilterStates] = useState<string[]>([]);
-  const [cadFilterStages, setCadFilterStages] = useState<string[]>([]);
-  const [cadFilterHasPhone, setCadFilterHasPhone] = useState(false);
-  const [cadFilterHasCrm, setCadFilterHasCrm] = useState(false);
-  const [cadFilterHasAd, setCadFilterHasAd] = useState<"yes" | "no" | null>(null);
-  const [cadFilterOrigin, setCadFilterOrigin] = useState<"organic" | "whatsapp" | null>(null);
-  const cadLastStateIdx = useRef(-1);
-  const cadLastStageIdx = useRef(-1);
-  const [cadSortBy, setCadSortBy] = useState<"name" | "lastContactAt" | "firstSeenAt" | "adStatus">("firstSeenAt");
-  const [cadSortDir, setCadSortDir] = useState<"asc" | "desc">("desc");
-
-  const handleCadSort = (col: typeof cadSortBy) => {
-    if (cadSortBy === col) setCadSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setCadSortBy(col); setCadSortDir(col === "name" ? "asc" : "desc"); }
-  };
   const [items, setItems] = useState<Prospect[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -742,31 +687,11 @@ function BancoDeDadosPage() {
   // Load stats
   const loadStats = useCallback(async () => {
     try {
-      const res = await fetchProspectStats(activeTab);
+      const res = await fetchProspectStats("scraper");
       setStats(res);
     } catch (err) {
       console.error(err);
       toast.error("Falha ao carregar estatísticas do banco");
-    }
-  }, [activeTab]);
-
-  // Load cadastros flat list
-  const loadCadastros = useCallback(async (page = 1, search = "") => {
-    setCadastrosLoading(true);
-    try {
-      const data = await fetchProspects({ source: "picjob_site", search, page, limit: LIMIT });
-      if (page === 1) {
-        setCadastrosItems(data.items || []);
-      } else {
-        setCadastrosItems((prev) => [...prev, ...(data.items || [])]);
-      }
-      setCadastrosTotal(data.total || 0);
-      setCadastrosPage(page);
-    } catch (err) {
-      console.error(err);
-      toast.error("Falha ao carregar cadastros");
-    } finally {
-      setCadastrosLoading(false);
     }
   }, []);
 
@@ -775,12 +700,11 @@ function BancoDeDadosPage() {
     if (!filterState || !filterCity) return;
     setLoading(true);
     try {
-      const tabSource = activeTab === "cadastros" ? "picjob_site" : (filterSource || undefined);
       const data = await fetchProspects({
         state: filterState === "SEM_ESTADO" ? "" : filterState,
         city: filterCity === "Sem cidade" ? "" : filterCity,
         search: searchQuery,
-        source: tabSource,
+        source: filterSource || undefined,
         page: 1,
         limit: LIMIT,
       });
@@ -792,18 +716,11 @@ function BancoDeDadosPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterState, filterCity, searchQuery, filterSource, activeTab]);
+  }, [filterState, filterCity, searchQuery, filterSource]);
 
   useEffect(() => {
     loadStats();
   }, [loadStats]);
-
-  useEffect(() => {
-    if (activeTab === "cadastros") {
-      setCadastrosSearch("");
-      loadCadastros(1, "");
-    }
-  }, [activeTab, loadCadastros]);
 
   useEffect(() => {
     if (filterState && filterCity) {
@@ -1128,51 +1045,6 @@ function BancoDeDadosPage() {
     data.cities.map(({ city }) => ({ state, city }))
   );
 
-  // Reset navigation on tab change
-  const handleTabChange = (tab: "scraper" | "cadastros") => {
-    setActiveTab(tab);
-    setFilterState("");
-    setFilterCity("");
-    setFilterSource("");
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  };
-
-  // Cadastros derived data
-  const cadAvailableStates = useMemo(() =>
-    [...new Set(cadastrosItems.map(p => p.state).filter((s): s is string => !!s))].sort(),
-    [cadastrosItems]
-  );
-  const cadAvailableStages = useMemo(() =>
-    [...new Set(cadastrosItems.map(p => p.crmContact?.stage?.name).filter((s): s is string => !!s))].sort(),
-    [cadastrosItems]
-  );
-  const filteredCadastros = useMemo(() => {
-    const filtered = cadastrosItems.filter(p => {
-      if (cadFilterStates.length > 0 && !cadFilterStates.includes(p.state || "")) return false;
-      if (cadFilterStages.length > 0 && !cadFilterStages.includes(p.crmContact?.stage?.name || "")) return false;
-      if (cadFilterHasPhone && !p.whatsappE164) return false;
-      if (cadFilterHasCrm && !p.crmContact) return false;
-      if (cadFilterHasAd === "yes" && p.adStatus !== 1) return false;
-      if (cadFilterHasAd === "no" && p.adStatus === 1) return false;
-      if (cadFilterOrigin === "organic" && p.crmContact) return false;
-      if (cadFilterOrigin === "whatsapp" && !p.crmContact) return false;
-      return true;
-    });
-    return [...filtered].sort((a, b) => {
-      let cmp = 0;
-      if (cadSortBy === "name") cmp = (a.name || "").localeCompare(b.name || "", "pt-BR");
-      else if (cadSortBy === "lastContactAt") {
-        const ta = a.crmContact?.lastContactAt ?? 0;
-        const tb = b.crmContact?.lastContactAt ?? 0;
-        cmp = ta - tb;
-      } else if (cadSortBy === "adStatus") cmp = (a.adStatus ?? -1) - (b.adStatus ?? -1);
-      else cmp = new Date(a.firstSeenAt).getTime() - new Date(b.firstSeenAt).getTime();
-      return cadSortDir === "desc" ? -cmp : cmp;
-    });
-  }, [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm, cadFilterHasAd, cadFilterOrigin, cadSortBy, cadSortDir]);
-  const cadActiveFilterCount = cadFilterStates.length + cadFilterStages.length + (cadFilterHasPhone ? 1 : 0) + (cadFilterHasCrm ? 1 : 0) + (cadFilterHasAd ? 1 : 0) + (cadFilterOrigin ? 1 : 0);
-
   const toggleMultiFilter = (
     value: string,
     options: string[],
@@ -1193,11 +1065,8 @@ function BancoDeDadosPage() {
     }
   };
 
-  // Client-side sort + tab filter
-  const sortedItems = [...items].filter((p) => {
-    if (activeTab === "scraper") return !p.sources.includes("picjob_site");
-    return true;
-  }).sort((a, b) => {
+  // Client-side sort
+  const sortedItems = [...items].sort((a, b) => {
     let cmp = 0;
     if (sortBy === "name") {
       cmp = (a.name || "").localeCompare(b.name || "", "pt-BR");
@@ -1226,31 +1095,8 @@ function BancoDeDadosPage() {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-1 bg-muted/40 border border-border rounded-xl p-1">
-            {([
-              { id: "scraper",   label: "Scraper",    desc: "Leads raspados" },
-              { id: "cadastros", label: "Cadastros",  desc: "Site PicJob" },
-            ] as const).map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex-1 flex flex-col items-center py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === tab.id
-                    ? tab.id === "scraper"
-                      ? "bg-card border border-border shadow-sm text-foreground"
-                      : "bg-blue-500/10 border border-blue-500/30 text-blue-300"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <span>{tab.label}</span>
-                <span className="text-[10px] font-normal opacity-60">{tab.desc}</span>
-              </button>
-            ))}
-          </div>
-
           {/* Stats Cards Banner */}
-          {stats && activeTab === "scraper" && !filterState && (
+          {stats && !filterState && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { label: "Total Scraper", value: (stats.bySource.fatalmodel || 0) + (stats.bySource.fotoacomp || 0) + (stats.bySource.skokka || 0), icon: Database, color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
@@ -1272,7 +1118,7 @@ function BancoDeDadosPage() {
           )}
 
           {/* Breadcrumbs Navigation — Scraper only */}
-          {activeTab === "scraper" && <div className="bg-card/30 backdrop-blur-md border border-border/50 rounded-xl p-3 flex items-center gap-2 text-sm">
+          {<div className="bg-card/30 backdrop-blur-md border border-border/50 rounded-xl p-3 flex items-center gap-2 text-sm">
             <button
               onClick={() => {
                 setFilterState("");
@@ -1305,7 +1151,7 @@ function BancoDeDadosPage() {
           </div>}
 
           {/* Root Level: Show States Folders — Scraper only */}
-          {activeTab === "scraper" && !filterState && (
+          {!filterState && (
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Pastas de Estados
@@ -1347,7 +1193,7 @@ function BancoDeDadosPage() {
           )}
 
           {/* Level 2: Show Cities Folders inside State */}
-          {activeTab === "scraper" && filterState && !filterCity && (
+          {filterState && !filterCity && (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <Button
@@ -1458,363 +1304,8 @@ function BancoDeDadosPage() {
             </div>
           )}
 
-          {/* Cadastros flat list */}
-          {activeTab === "cadastros" && (
-            <div className="space-y-4">
-              {/* Header bar */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="text-muted-foreground">
-                    {filteredCadastros.length !== cadastrosItems.length
-                      ? <><span className="font-semibold text-foreground">{filteredCadastros.length.toLocaleString("pt-BR")}</span> de {cadastrosTotal.toLocaleString("pt-BR")} cadastros</>
-                      : <><span className="font-semibold text-foreground">{cadastrosTotal.toLocaleString("pt-BR")}</span> cadastros</>}
-                  </span>
-                  <span className="text-muted-foreground/40">·</span>
-                  <span className="text-muted-foreground"><span className="font-semibold text-emerald-400">{(stats?.withPhone || 0).toLocaleString("pt-BR")}</span> com WhatsApp</span>
-                </div>
-                <div className="flex gap-2 ml-auto">
-                  {/* Filter toggle */}
-                  <Button
-                    variant={showCadFilters ? "default" : "outline"}
-                    size="sm"
-                    className={`h-9 gap-1.5 ${showCadFilters ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600" : ""}`}
-                    onClick={() => setShowCadFilters(v => !v)}
-                  >
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    Filtros
-                    {cadActiveFilterCount > 0 && (
-                      <span className="bg-white/20 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-0.5">{cadActiveFilterCount}</span>
-                    )}
-                    <ChevronDown className={`h-3 w-3 transition-transform ${showCadFilters ? "rotate-180" : ""}`} />
-                  </Button>
-                  <form
-                    onSubmit={(e) => { e.preventDefault(); loadCadastros(1, cadastrosSearch); }}
-                    className="flex gap-2"
-                  >
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Buscar por nome ou telefone…"
-                        value={cadastrosSearch}
-                        onChange={(e) => setCadastrosSearch(e.target.value)}
-                        className="pl-9 h-9 w-56"
-                      />
-                    </div>
-                    <Button type="submit" size="sm" className="h-9">Buscar</Button>
-                    {cadastrosSearch && (
-                      <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => { setCadastrosSearch(""); loadCadastros(1, ""); }}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </form>
-                </div>
-              </div>
-
-              {/* Filter panel */}
-              {showCadFilters && (
-                <div className="bg-card/60 border border-border rounded-xl p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filtros ativos</span>
-                    {cadActiveFilterCount > 0 && (
-                      <button
-                        onClick={() => { setCadFilterStates([]); setCadFilterStages([]); setCadFilterHasPhone(false); setCadFilterHasCrm(false); setCadFilterHasAd(null); cadLastStateIdx.current = -1; cadLastStageIdx.current = -1; }}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-                      >
-                        <X className="h-3 w-3" /> Limpar todos
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Quick toggles */}
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setCadFilterHasPhone(v => !v)}
-                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterHasPhone ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
-                    >
-                      Com WhatsApp
-                    </button>
-                    <button
-                      onClick={() => setCadFilterHasCrm(v => !v)}
-                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterHasCrm ? "bg-violet-500/15 border-violet-500/50 text-violet-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
-                    >
-                      No CRM
-                    </button>
-                    <button
-                      onClick={() => setCadFilterHasAd(v => v === "yes" ? null : "yes")}
-                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterHasAd === "yes" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
-                    >
-                      Com anúncio ativo
-                    </button>
-                    <button
-                      onClick={() => setCadFilterHasAd(v => v === "no" ? null : "no")}
-                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterHasAd === "no" ? "bg-amber-500/15 border-amber-500/50 text-amber-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
-                    >
-                      Sem anúncio
-                    </button>
-                    <button
-                      onClick={() => setCadFilterOrigin(v => v === "organic" ? null : "organic")}
-                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterOrigin === "organic" ? "bg-teal-500/15 border-teal-500/50 text-teal-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
-                    >
-                      Orgânicos
-                    </button>
-                    <button
-                      onClick={() => setCadFilterOrigin(v => v === "whatsapp" ? null : "whatsapp")}
-                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterOrigin === "whatsapp" ? "bg-violet-500/15 border-violet-500/50 text-violet-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
-                    >
-                      Via WhatsApp
-                    </button>
-                  </div>
-
-                  {/* Estado */}
-                  {cadAvailableStates.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Estado <span className="text-muted-foreground/40 font-normal normal-case">(shift+clique p/ selecionar intervalo)</span></span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {cadAvailableStates.map((st) => (
-                          <button
-                            key={st}
-                            onClick={(e) => toggleMultiFilter(st, cadAvailableStates, cadFilterStates, setCadFilterStates, cadLastStateIdx, e)}
-                            className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors select-none ${cadFilterStates.includes(st) ? "bg-blue-500/15 border-blue-500/50 text-blue-300" : "border-border text-muted-foreground hover:border-foreground/30"}`}
-                          >
-                            {st}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Funil */}
-                  {cadAvailableStages.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Etapa do Funil <span className="text-muted-foreground/40 font-normal normal-case">(shift+clique p/ selecionar intervalo)</span></span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {cadAvailableStages.map((sg) => {
-                          const color = cadastrosItems.find(p => p.crmContact?.stage?.name === sg)?.crmContact?.stage?.color;
-                          return (
-                            <button
-                              key={sg}
-                              onClick={(e) => toggleMultiFilter(sg, cadAvailableStages, cadFilterStages, setCadFilterStages, cadLastStageIdx, e)}
-                              className="text-xs px-2.5 py-1 rounded-full border font-medium transition-colors select-none"
-                              style={cadFilterStages.includes(sg)
-                                ? { backgroundColor: (color || "#3b82f6") + "22", borderColor: (color || "#3b82f6") + "66", color: color || "#3b82f6" }
-                                : undefined}
-                            >
-                              {!cadFilterStages.includes(sg) && <span className="text-muted-foreground">{sg}</span>}
-                              {cadFilterStages.includes(sg) && sg}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {cadastrosLoading && cadastrosItems.length === 0 ? (
-                <div className="space-y-2 py-4">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="h-14 bg-card/50 border border-border animate-pulse rounded-lg" />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
-                        <th className="text-left px-3 py-2.5 font-medium w-9" />
-                        <th className="text-left px-3 py-2.5 font-medium cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("name")}>
-                          <span className="flex items-center gap-1">Nome {cadSortBy === "name" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
-                        </th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Telefone</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Localização</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Funil</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Bot</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Origem</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("adStatus")}>
-                          <span className="flex items-center gap-1">Situação no site {cadSortBy === "adStatus" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
-                        </th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("lastContactAt")}>
-                          <span className="flex items-center gap-1">Último contato {cadSortBy === "lastContactAt" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
-                        </th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("firstSeenAt")}>
-                          <span className="flex items-center gap-1">Cadastro {cadSortBy === "firstSeenAt" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
-                        </th>
-                        <th className="w-9 px-3 py-2.5" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredCadastros.map((prospect) => {
-                        const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
-                        const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
-                        const initials = prospect.name.slice(0, 2).toUpperCase();
-                        const stage = prospect.crmContact?.stage;
-                        const stageColor = stage?.color || undefined;
-                        const lastContactAt = prospect.crmContact?.lastContactAt;
-                        const botEnabled = prospect.crmContact?.botEnabled;
-                        const hasCrm = !!prospect.crmContact;
-
-                        return (
-                          <tr
-                            key={prospect.id}
-                            onClick={() => setPopupProspect(prospect)}
-                            className="border-b border-border/50 last:border-0 cursor-pointer transition-colors hover:bg-muted/20 relative"
-                            style={stageColor ? { borderLeft: `3px solid ${stageColor}40` } : { borderLeft: "3px solid transparent" }}
-                          >
-                            {/* Avatar */}
-                            <td className="px-3 py-2.5">
-                              {prospect.thumbUrl ? (
-                                <img src={prospect.thumbUrl} alt="" className="w-8 h-8 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                              ) : (
-                                <div
-                                  className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold"
-                                  style={stageColor
-                                    ? { backgroundColor: stageColor + "22", color: stageColor }
-                                    : { backgroundColor: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" }
-                                  }
-                                >
-                                  {initials}
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Nome */}
-                            <td className="px-3 py-2.5 max-w-[200px]">
-                              <span className="font-medium truncate block">{prospect.name}</span>
-                              {!hasCrm && (
-                                <span className="text-[10px] text-muted-foreground/50">Sem contato</span>
-                              )}
-                            </td>
-
-                            {/* Telefone + botão WA */}
-                            <td className="px-3 py-2.5 hidden sm:table-cell">
-                              {phone ? (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-mono text-foreground/80">{phone}</span>
-                                  <a
-                                    href={waUrl!}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="text-[#25D366] hover:text-[#1ebe5d] transition-colors flex-shrink-0"
-                                    title="Abrir no WhatsApp"
-                                  >
-                                    <MessageCircle className="h-3.5 w-3.5" />
-                                  </a>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground/40 italic">Sem telefone</span>
-                              )}
-                            </td>
-
-                            {/* Localização */}
-                            <td className="px-3 py-2.5 hidden md:table-cell">
-                              {prospect.city || prospect.state ? (
-                                <div className="flex flex-col gap-0.5">
-                                  {prospect.city && <span className="text-xs text-foreground/80 truncate max-w-[120px]">{prospect.city}</span>}
-                                  {prospect.state && <span className="text-[10px] font-mono text-muted-foreground">{prospect.state}</span>}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground/40 italic">–</span>
-                              )}
-                            </td>
-
-                            {/* Funil */}
-                            <td className="px-3 py-2.5 hidden lg:table-cell">
-                              {stage ? (
-                                <span
-                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap"
-                                  style={{ backgroundColor: stageColor + "22", color: stageColor, borderColor: stageColor + "44" }}
-                                >
-                                  {stage.name}
-                                </span>
-                              ) : (
-                                <span className="text-[11px] text-muted-foreground/50 italic">Novo</span>
-                              )}
-                            </td>
-
-                            {/* Bot */}
-                            <td className="px-3 py-2.5 hidden xl:table-cell">
-                              {hasCrm ? (
-                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${botEnabled ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-muted/40 text-muted-foreground border-border"}`}>
-                                  {botEnabled ? "Bot ativo" : "Bot off"}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-muted-foreground/30">–</span>
-                              )}
-                            </td>
-
-                            {/* Origem */}
-                            <td className="px-3 py-2.5 hidden lg:table-cell">
-                              <OriginBadge hasCrm={!!prospect.crmContact} />
-                            </td>
-
-                            {/* Situação no site */}
-                            <td className="px-3 py-2.5 hidden lg:table-cell">
-                              <AdStatusBadge status={prospect.adStatus} />
-                            </td>
-
-                            {/* Último contato */}
-                            <td className="px-3 py-2.5 hidden xl:table-cell">
-                              {lastContactAt ? (
-                                <span className="text-xs text-muted-foreground" title={new Date(lastContactAt * 1000).toLocaleString("pt-BR")}>
-                                  {timeAgo(lastContactAt * 1000)}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-muted-foreground/30">–</span>
-                              )}
-                            </td>
-
-                            {/* Data cadastro */}
-                            <td className="px-3 py-2.5 hidden lg:table-cell">
-                              <span className="text-xs text-muted-foreground" title={new Date(prospect.firstSeenAt).toLocaleString("pt-BR")}>
-                                {timeAgo(new Date(prospect.firstSeenAt).getTime())}
-                              </span>
-                            </td>
-
-                            {/* Ações */}
-                            <td className="px-3 py-2.5">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setPopupProspect(prospect); }}
-                                className="text-muted-foreground/30 hover:text-foreground transition-colors"
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {filteredCadastros.length === 0 && !cadastrosLoading && (
-                        <tr>
-                          <td colSpan={11} className="px-3 py-12 text-center text-muted-foreground">
-                            {cadActiveFilterCount > 0 ? "Nenhum cadastro corresponde aos filtros selecionados." : "Nenhum cadastro encontrado."}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {cadastrosItems.length < cadastrosTotal && (
-                <div className="flex justify-center pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => loadCadastros(cadastrosPage + 1, cadastrosSearch)}
-                    disabled={cadastrosLoading}
-                    className="gap-2"
-                  >
-                    {cadastrosLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}
-                    Carregar mais ({(cadastrosTotal - cadastrosItems.length).toLocaleString("pt-BR")} restantes)
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Level 3: Show Prospects list/grid inside City — Scraper only */}
-          {activeTab === "scraper" && filterState && filterCity && (
+          {filterState && filterCity && (
             <div className="space-y-4">
               {/* Search & Export Toolbar */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
