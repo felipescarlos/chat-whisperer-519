@@ -484,6 +484,7 @@ function BancoDeDadosPage() {
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const lastClickedIndexRef = useRef<number>(-1);
 
   // View mode: persisted in localStorage
   const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
@@ -1173,7 +1174,7 @@ function BancoDeDadosPage() {
                   <Button
                     variant={selectionMode ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); }}
+                    onClick={() => { setSelectionMode(v => !v); setSelectedIds(new Set()); lastClickedIndexRef.current = -1; }}
                     className={`gap-2 h-9 ${selectionMode ? "bg-violet-600 hover:bg-violet-700 text-white border-violet-600" : ""}`}
                   >
                     <CheckSquare className="h-4 w-4" />
@@ -1299,9 +1300,25 @@ function BancoDeDadosPage() {
                             const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
                             const isSelected = selectedIds.has(prospect.id);
                             const initials = prospect.name.slice(0, 2).toUpperCase();
-                            const toggleSelect = () => setSelectedIds((prev) => {
-                              const next = new Set(prev); next.has(prospect.id) ? next.delete(prospect.id) : next.add(prospect.id); return next;
-                            });
+                            const idx = sortedItems.indexOf(prospect);
+                            const toggleSelect = (e: React.MouseEvent) => {
+                              if (e.shiftKey && lastClickedIndexRef.current >= 0) {
+                                const from = Math.min(lastClickedIndexRef.current, idx);
+                                const to = Math.max(lastClickedIndexRef.current, idx);
+                                setSelectedIds((prev) => {
+                                  const next = new Set(prev);
+                                  for (let i = from; i <= to; i++) next.add(sortedItems[i].id);
+                                  return next;
+                                });
+                              } else {
+                                setSelectedIds((prev) => {
+                                  const next = new Set(prev);
+                                  next.has(prospect.id) ? next.delete(prospect.id) : next.add(prospect.id);
+                                  return next;
+                                });
+                                lastClickedIndexRef.current = idx;
+                              }
+                            };
                             return (
                               <tr
                                 key={prospect.id}
@@ -1395,16 +1412,28 @@ function BancoDeDadosPage() {
                       const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
                       const waUrl = phone ? `https://wa.me/${phone}` : null;
                       const isSelected = selectedIds.has(prospect.id);
+                      const idx = sortedItems.indexOf(prospect);
                       return (
                         <div
                           key={prospect.id}
-                          onClick={selectionMode ? () => {
-                            setSelectedIds((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(prospect.id)) next.delete(prospect.id);
-                              else next.add(prospect.id);
-                              return next;
-                            });
+                          onClick={selectionMode ? (e: React.MouseEvent) => {
+                            if (e.shiftKey && lastClickedIndexRef.current >= 0) {
+                              const from = Math.min(lastClickedIndexRef.current, idx);
+                              const to = Math.max(lastClickedIndexRef.current, idx);
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                for (let i = from; i <= to; i++) next.add(sortedItems[i].id);
+                                return next;
+                              });
+                            } else {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(prospect.id)) next.delete(prospect.id);
+                                else next.add(prospect.id);
+                                return next;
+                              });
+                              lastClickedIndexRef.current = idx;
+                            }
                           } : () => setPopupProspect(prospect)}
                           className={`group relative bg-card rounded-xl overflow-hidden shadow-sm transition-all duration-200 border cursor-pointer ${
                             selectionMode
