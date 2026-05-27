@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   Folder, FolderOpen, ChevronRight, Search,
   Database, Wifi, Building2, Globe, ArrowLeft, Home, FileSpreadsheet,
   RefreshCw, MessageCircle, MapPin, Square, Trash2, CheckSquare,
   FolderInput, AlertTriangle, X, LayoutList, LayoutGrid, Upload,
-  FolderPlus, Bot, Tag, Calendar, ExternalLink, Phone,
+  FolderPlus, Bot, Tag, Calendar, ExternalLink, Phone, SlidersHorizontal, ChevronDown,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -517,6 +517,15 @@ function BancoDeDadosPage() {
   const [cadastrosPage, setCadastrosPage] = useState(1);
   const [cadastrosLoading, setCadastrosLoading] = useState(false);
   const [cadastrosSearch, setCadastrosSearch] = useState("");
+
+  // Cadastros filters
+  const [showCadFilters, setShowCadFilters] = useState(false);
+  const [cadFilterStates, setCadFilterStates] = useState<string[]>([]);
+  const [cadFilterStages, setCadFilterStages] = useState<string[]>([]);
+  const [cadFilterHasPhone, setCadFilterHasPhone] = useState(false);
+  const [cadFilterHasCrm, setCadFilterHasCrm] = useState(false);
+  const cadLastStateIdx = useRef(-1);
+  const cadLastStageIdx = useRef(-1);
   const [items, setItems] = useState<Prospect[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -928,6 +937,44 @@ function BancoDeDadosPage() {
     setSelectedIds(new Set());
   };
 
+  // Cadastros derived data
+  const cadAvailableStates = useMemo(() =>
+    [...new Set(cadastrosItems.map(p => p.state).filter((s): s is string => !!s))].sort(),
+    [cadastrosItems]
+  );
+  const cadAvailableStages = useMemo(() =>
+    [...new Set(cadastrosItems.map(p => p.crmContact?.stage?.name).filter((s): s is string => !!s))].sort(),
+    [cadastrosItems]
+  );
+  const filteredCadastros = useMemo(() => cadastrosItems.filter(p => {
+    if (cadFilterStates.length > 0 && !cadFilterStates.includes(p.state || "")) return false;
+    if (cadFilterStages.length > 0 && !cadFilterStages.includes(p.crmContact?.stage?.name || "")) return false;
+    if (cadFilterHasPhone && !p.whatsappE164) return false;
+    if (cadFilterHasCrm && !p.crmContact) return false;
+    return true;
+  }), [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm]);
+  const cadActiveFilterCount = cadFilterStates.length + cadFilterStages.length + (cadFilterHasPhone ? 1 : 0) + (cadFilterHasCrm ? 1 : 0);
+
+  const toggleMultiFilter = (
+    value: string,
+    options: string[],
+    selected: string[],
+    setSelected: React.Dispatch<React.SetStateAction<string[]>>,
+    lastIdxRef: React.MutableRefObject<number>,
+    e: React.MouseEvent
+  ) => {
+    const idx = options.indexOf(value);
+    if (e.shiftKey && lastIdxRef.current >= 0) {
+      const from = Math.min(lastIdxRef.current, idx);
+      const to = Math.max(lastIdxRef.current, idx);
+      const range = options.slice(from, to + 1);
+      setSelected(prev => [...new Set([...prev, ...range])]);
+    } else {
+      setSelected(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
+      lastIdxRef.current = idx;
+    }
+  };
+
   // Client-side sort + tab filter
   const sortedItems = [...items].filter((p) => {
     if (activeTab === "scraper") return !p.sources.includes("picjob_site");
@@ -1191,35 +1238,127 @@ function BancoDeDadosPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-4 text-sm">
                   <span className="text-muted-foreground">
-                    {cadastrosTotal > 0 ? <><span className="font-semibold text-foreground">{cadastrosTotal.toLocaleString("pt-BR")}</span> cadastros</> : "Carregando…"}
+                    {filteredCadastros.length !== cadastrosItems.length
+                      ? <><span className="font-semibold text-foreground">{filteredCadastros.length.toLocaleString("pt-BR")}</span> de {cadastrosTotal.toLocaleString("pt-BR")} cadastros</>
+                      : <><span className="font-semibold text-foreground">{cadastrosTotal.toLocaleString("pt-BR")}</span> cadastros</>}
                   </span>
-                  <span className="text-muted-foreground/40">·</span>
-                  <span className="text-muted-foreground"><span className="font-semibold text-blue-400">{(stats?.bySource.picjob_site || 0).toLocaleString("pt-BR")}</span> no site</span>
                   <span className="text-muted-foreground/40">·</span>
                   <span className="text-muted-foreground"><span className="font-semibold text-emerald-400">{(stats?.withPhone || 0).toLocaleString("pt-BR")}</span> com WhatsApp</span>
                 </div>
-                <form
-                  onSubmit={(e) => { e.preventDefault(); loadCadastros(1, cadastrosSearch); }}
-                  className="flex gap-2 ml-auto"
-                >
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Buscar por nome ou telefone…"
-                      value={cadastrosSearch}
-                      onChange={(e) => setCadastrosSearch(e.target.value)}
-                      className="pl-9 h-9 w-64"
-                    />
-                  </div>
-                  <Button type="submit" size="sm" className="h-9">Buscar</Button>
-                  {cadastrosSearch && (
-                    <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => { setCadastrosSearch(""); loadCadastros(1, ""); }}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </form>
+                <div className="flex gap-2 ml-auto">
+                  {/* Filter toggle */}
+                  <Button
+                    variant={showCadFilters ? "default" : "outline"}
+                    size="sm"
+                    className={`h-9 gap-1.5 ${showCadFilters ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600" : ""}`}
+                    onClick={() => setShowCadFilters(v => !v)}
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    Filtros
+                    {cadActiveFilterCount > 0 && (
+                      <span className="bg-white/20 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-0.5">{cadActiveFilterCount}</span>
+                    )}
+                    <ChevronDown className={`h-3 w-3 transition-transform ${showCadFilters ? "rotate-180" : ""}`} />
+                  </Button>
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); loadCadastros(1, cadastrosSearch); }}
+                    className="flex gap-2"
+                  >
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Buscar por nome ou telefone…"
+                        value={cadastrosSearch}
+                        onChange={(e) => setCadastrosSearch(e.target.value)}
+                        className="pl-9 h-9 w-56"
+                      />
+                    </div>
+                    <Button type="submit" size="sm" className="h-9">Buscar</Button>
+                    {cadastrosSearch && (
+                      <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => { setCadastrosSearch(""); loadCadastros(1, ""); }}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </form>
+                </div>
               </div>
+
+              {/* Filter panel */}
+              {showCadFilters && (
+                <div className="bg-card/60 border border-border rounded-xl p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filtros ativos</span>
+                    {cadActiveFilterCount > 0 && (
+                      <button
+                        onClick={() => { setCadFilterStates([]); setCadFilterStages([]); setCadFilterHasPhone(false); setCadFilterHasCrm(false); cadLastStateIdx.current = -1; cadLastStageIdx.current = -1; }}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                      >
+                        <X className="h-3 w-3" /> Limpar todos
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Quick toggles */}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setCadFilterHasPhone(v => !v)}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterHasPhone ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
+                    >
+                      Com WhatsApp
+                    </button>
+                    <button
+                      onClick={() => setCadFilterHasCrm(v => !v)}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterHasCrm ? "bg-violet-500/15 border-violet-500/50 text-violet-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
+                    >
+                      No CRM
+                    </button>
+                  </div>
+
+                  {/* Estado */}
+                  {cadAvailableStates.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Estado <span className="text-muted-foreground/40 font-normal normal-case">(shift+clique p/ selecionar intervalo)</span></span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {cadAvailableStates.map((st) => (
+                          <button
+                            key={st}
+                            onClick={(e) => toggleMultiFilter(st, cadAvailableStates, cadFilterStates, setCadFilterStates, cadLastStateIdx, e)}
+                            className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors select-none ${cadFilterStates.includes(st) ? "bg-blue-500/15 border-blue-500/50 text-blue-300" : "border-border text-muted-foreground hover:border-foreground/30"}`}
+                          >
+                            {st}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Funil */}
+                  {cadAvailableStages.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Etapa do Funil <span className="text-muted-foreground/40 font-normal normal-case">(shift+clique p/ selecionar intervalo)</span></span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {cadAvailableStages.map((sg) => {
+                          const color = cadastrosItems.find(p => p.crmContact?.stage?.name === sg)?.crmContact?.stage?.color;
+                          return (
+                            <button
+                              key={sg}
+                              onClick={(e) => toggleMultiFilter(sg, cadAvailableStages, cadFilterStages, setCadFilterStages, cadLastStageIdx, e)}
+                              className="text-xs px-2.5 py-1 rounded-full border font-medium transition-colors select-none"
+                              style={cadFilterStages.includes(sg)
+                                ? { backgroundColor: (color || "#3b82f6") + "22", borderColor: (color || "#3b82f6") + "66", color: color || "#3b82f6" }
+                                : undefined}
+                            >
+                              {!cadFilterStages.includes(sg) && <span className="text-muted-foreground">{sg}</span>}
+                              {cadFilterStages.includes(sg) && sg}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {cadastrosLoading && cadastrosItems.length === 0 ? (
                 <div className="space-y-2 py-4">
@@ -1237,6 +1376,7 @@ function BancoDeDadosPage() {
                         <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Telefone</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Localização</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Funil</th>
+                        <th className="text-center px-3 py-2.5 font-medium hidden lg:table-cell">Anúncios</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Bot</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Último contato</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Cadastro</th>
@@ -1244,7 +1384,7 @@ function BancoDeDadosPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {cadastrosItems.map((prospect) => {
+                      {filteredCadastros.map((prospect) => {
                         const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
                         const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
                         const initials = prospect.name.slice(0, 2).toUpperCase();
@@ -1333,6 +1473,11 @@ function BancoDeDadosPage() {
                               )}
                             </td>
 
+                            {/* Anúncios ativos */}
+                            <td className="px-3 py-2.5 hidden lg:table-cell text-center">
+                              <span className="text-xs text-muted-foreground/40" title="Sincronização com MySQL pendente">–</span>
+                            </td>
+
                             {/* Bot */}
                             <td className="px-3 py-2.5 hidden xl:table-cell">
                               {hasCrm ? (
@@ -1374,10 +1519,10 @@ function BancoDeDadosPage() {
                           </tr>
                         );
                       })}
-                      {cadastrosItems.length === 0 && !cadastrosLoading && (
+                      {filteredCadastros.length === 0 && !cadastrosLoading && (
                         <tr>
-                          <td colSpan={9} className="px-3 py-12 text-center text-muted-foreground">
-                            Nenhum cadastro encontrado.
+                          <td colSpan={10} className="px-3 py-12 text-center text-muted-foreground">
+                            {cadActiveFilterCount > 0 ? "Nenhum cadastro corresponde aos filtros selecionados." : "Nenhum cadastro encontrado."}
                           </td>
                         </tr>
                       )}
