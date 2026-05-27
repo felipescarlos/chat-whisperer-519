@@ -33,24 +33,40 @@ export const Route = createFileRoute("/banco-de-dados")({
 });
 
 const STATES = [
-  { code: "RN", label: "Rio Grande do Norte" },
-  { code: "CE", label: "Ceará" },
-  { code: "PB", label: "Paraíba" },
-  { code: "PE", label: "Pernambuco" },
+  { code: "AC", label: "Acre" },
   { code: "AL", label: "Alagoas" },
+  { code: "AP", label: "Amapá" },
+  { code: "AM", label: "Amazonas" },
   { code: "BA", label: "Bahia" },
-  { code: "SP", label: "São Paulo" },
-  { code: "RJ", label: "Rio de Janeiro" },
+  { code: "CE", label: "Ceará" },
+  { code: "DF", label: "Distrito Federal" },
+  { code: "ES", label: "Espírito Santo" },
+  { code: "GO", label: "Goiás" },
+  { code: "MA", label: "Maranhão" },
+  { code: "MT", label: "Mato Grosso" },
+  { code: "MS", label: "Mato Grosso do Sul" },
   { code: "MG", label: "Minas Gerais" },
+  { code: "PA", label: "Pará" },
+  { code: "PB", label: "Paraíba" },
   { code: "PR", label: "Paraná" },
-  { code: "SC", label: "Santa Catarina" },
+  { code: "PE", label: "Pernambuco" },
+  { code: "PI", label: "Piauí" },
+  { code: "RJ", label: "Rio de Janeiro" },
+  { code: "RN", label: "Rio Grande do Norte" },
   { code: "RS", label: "Rio Grande do Sul" },
+  { code: "RO", label: "Rondônia" },
+  { code: "RR", label: "Roraima" },
+  { code: "SC", label: "Santa Catarina" },
+  { code: "SP", label: "São Paulo" },
+  { code: "SE", label: "Sergipe" },
+  { code: "TO", label: "Tocantins" },
 ];
 
 const SOURCES_LABELS: Record<string, string> = {
   fatalmodel: "Fatal Model",
   skokka: "Skokka",
   fotoacomp: "PhotoAcomp",
+  picjob_site: "PicJob Site",
 };
 
 function SourceBadge({ source, href }: { source: string; href?: string }) {
@@ -58,6 +74,7 @@ function SourceBadge({ source, href }: { source: string; href?: string }) {
     fatalmodel: "bg-rose-500/20 text-rose-300 border-rose-500/30",
     skokka: "bg-orange-500/20 text-orange-300 border-orange-500/30",
     fotoacomp: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+    picjob_site: "bg-blue-500/20 text-blue-300 border-blue-500/30",
   };
   const cls = `text-[10px] px-1.5 py-0.5 rounded border font-medium transition-opacity ${colors[source] || "bg-muted text-muted-foreground border-border"}`;
   if (href) {
@@ -666,7 +683,7 @@ function BancoDeDadosPage() {
 
   // Group stats for folder view
   const groupedStats = stats?.byStateCity?.reduce((acc, curr) => {
-    const state = curr.state || "N/A";
+    const state = curr.state || "SEM_ESTADO";
     if (!acc[state]) {
       acc[state] = {
         total: 0,
@@ -674,9 +691,8 @@ function BancoDeDadosPage() {
       };
     }
     acc[state].total += curr.count;
-    if (curr.city) {
-      acc[state].cities.push({ city: curr.city, count: curr.count });
-    }
+    const city = curr.city || "Sem cidade";
+    acc[state].cities.push({ city, count: curr.count });
     return acc;
   }, {} as Record<string, { total: number; cities: { city: string; count: number }[] }>);
 
@@ -842,7 +858,7 @@ function BancoDeDadosPage() {
 
   const currentStateData = sortedStates.find(([code]) => code === filterState)?.[1];
   const currentCityCount = currentStateData?.cities.find((c) => c.city === filterCity)?.count || 0;
-  const stateLabel = STATES.find((s) => s.code === filterState)?.label || filterState;
+  const stateLabel = filterState === "SEM_ESTADO" ? "Sem localização" : (STATES.find((s) => s.code === filterState)?.label || filterState);
 
 
   // Flat list of all cities in DB for import autocomplete
@@ -946,7 +962,7 @@ function BancoDeDadosPage() {
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {sortedStates.map(([stateCode, data]) => {
-                  const label = STATES.find((s) => s.code === stateCode)?.label || stateCode;
+                  const label = stateCode === "SEM_ESTADO" ? "Sem localização" : (STATES.find((s) => s.code === stateCode)?.label || stateCode);
                   return (
                     <button
                       key={stateCode}
@@ -1214,10 +1230,11 @@ function BancoDeDadosPage() {
               {/* Source filter chips */}
               <div className="flex items-center gap-2 flex-wrap">
                 {[
-                  { id: "",           label: "Todos",       color: "border-border text-muted-foreground hover:border-foreground/40" },
-                  { id: "fatalmodel", label: "Fatal Model", color: "border-rose-500/40 text-rose-400 hover:bg-rose-500/10" },
-                  { id: "fotoacomp",  label: "PhotoAcomp",  color: "border-violet-500/40 text-violet-400 hover:bg-violet-500/10" },
-                  { id: "skokka",     label: "Skokka",      color: "border-orange-500/40 text-orange-400 hover:bg-orange-500/10" },
+                  { id: "",            label: "Todos",        color: "border-border text-muted-foreground hover:border-foreground/40" },
+                  { id: "fatalmodel",  label: "Fatal Model",  color: "border-rose-500/40 text-rose-400 hover:bg-rose-500/10" },
+                  { id: "fotoacomp",   label: "PhotoAcomp",   color: "border-violet-500/40 text-violet-400 hover:bg-violet-500/10" },
+                  { id: "skokka",      label: "Skokka",       color: "border-orange-500/40 text-orange-400 hover:bg-orange-500/10" },
+                  { id: "picjob_site", label: "PicJob Site",  color: "border-blue-500/40 text-blue-400 hover:bg-blue-500/10" },
                 ].map((src) => (
                   <button
                     key={src.id}
@@ -1230,6 +1247,8 @@ function BancoDeDadosPage() {
                           ? "bg-rose-500/15 border-rose-500/60 text-rose-300"
                           : src.id === "fotoacomp"
                           ? "bg-violet-500/15 border-violet-500/60 text-violet-300"
+                          : src.id === "picjob_site"
+                          ? "bg-blue-500/15 border-blue-500/60 text-blue-300"
                           : "bg-orange-500/15 border-orange-500/60 text-orange-300"
                         : src.color
                     }`}
