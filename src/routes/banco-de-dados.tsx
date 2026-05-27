@@ -1516,7 +1516,6 @@ function BancoDeDadosPage() {
                         <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Telefone</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Localização</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Funil</th>
-                        <th className="text-center px-3 py-2.5 font-medium hidden lg:table-cell">Anúncios</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Bot</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Último contato</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Cadastro</th>
@@ -1613,19 +1612,6 @@ function BancoDeDadosPage() {
                               )}
                             </td>
 
-                            {/* Anúncios ativos */}
-                            <td className="px-3 py-2.5 hidden lg:table-cell text-center">
-                              {Object.values(prospect.sourceUrls || {}).some(u => !!u) ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                                  Ativo
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-                                  Sem anúncio
-                                </span>
-                              )}
-                            </td>
-
                             {/* Bot */}
                             <td className="px-3 py-2.5 hidden xl:table-cell">
                               {hasCrm ? (
@@ -1669,7 +1655,7 @@ function BancoDeDadosPage() {
                       })}
                       {filteredCadastros.length === 0 && !cadastrosLoading && (
                         <tr>
-                          <td colSpan={10} className="px-3 py-12 text-center text-muted-foreground">
+                          <td colSpan={9} className="px-3 py-12 text-center text-muted-foreground">
                             {cadActiveFilterCount > 0 ? "Nenhum cadastro corresponde aos filtros selecionados." : "Nenhum cadastro encontrado."}
                           </td>
                         </tr>
