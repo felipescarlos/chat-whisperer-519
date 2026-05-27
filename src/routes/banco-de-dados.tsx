@@ -811,7 +811,7 @@ function BancoDeDadosPage() {
     }
   };
 
-  const executeMoveProspects = async (resolution: "replace" | "keep-both" | "skip") => {
+  const executeMoveProspects = async (resolution: "replace" | "keep-both" | "skip" | "merge") => {
     setMoving(true);
     const originCity = filterCity;
     const originState = filterState;
