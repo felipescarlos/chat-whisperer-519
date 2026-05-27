@@ -32,6 +32,20 @@ export const Route = createFileRoute("/banco-de-dados")({
   component: BancoDeDadosPage,
 });
 
+function timeAgo(ms: number): string {
+  const diff = Date.now() - ms;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "agora";
+  if (mins < 60) return `há ${mins}min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `há ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `há ${days}d`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `há ${months}m`;
+  return `há ${Math.floor(months / 12)}a`;
+}
+
 const STATES = [
   { code: "AC", label: "Acre" },
   { code: "AL", label: "Alagoas" },
@@ -1173,43 +1187,44 @@ function BancoDeDadosPage() {
           {/* Cadastros flat list */}
           {activeTab === "cadastros" && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {cadastrosTotal > 0 ? `${cadastrosTotal.toLocaleString("pt-BR")} cadastros encontrados` : "Carregando…"}
-                </span>
-                <div className="ml-auto flex items-center gap-2">
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-1.5 text-sm font-semibold text-blue-300">
-                    {(stats?.bySource.picjob_site || 0).toLocaleString("pt-BR")} total · {(stats?.withPhone || 0).toLocaleString("pt-BR")} com WhatsApp
+              {/* Header bar */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="text-muted-foreground">
+                    {cadastrosTotal > 0 ? <><span className="font-semibold text-foreground">{cadastrosTotal.toLocaleString("pt-BR")}</span> cadastros</> : "Carregando…"}
+                  </span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span className="text-muted-foreground"><span className="font-semibold text-blue-400">{(stats?.bySource.picjob_site || 0).toLocaleString("pt-BR")}</span> no site</span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span className="text-muted-foreground"><span className="font-semibold text-emerald-400">{(stats?.withPhone || 0).toLocaleString("pt-BR")}</span> com WhatsApp</span>
+                </div>
+                <form
+                  onSubmit={(e) => { e.preventDefault(); loadCadastros(1, cadastrosSearch); }}
+                  className="flex gap-2 ml-auto"
+                >
+                  <div className="relative">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Buscar por nome ou telefone…"
+                      value={cadastrosSearch}
+                      onChange={(e) => setCadastrosSearch(e.target.value)}
+                      className="pl-9 h-9 w-64"
+                    />
                   </div>
-                </div>
+                  <Button type="submit" size="sm" className="h-9">Buscar</Button>
+                  {cadastrosSearch && (
+                    <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => { setCadastrosSearch(""); loadCadastros(1, ""); }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </form>
               </div>
-
-              <form
-                onSubmit={(e) => { e.preventDefault(); loadCadastros(1, cadastrosSearch); }}
-                className="flex gap-2"
-              >
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Buscar por nome ou telefone…"
-                    value={cadastrosSearch}
-                    onChange={(e) => setCadastrosSearch(e.target.value)}
-                    className="pl-9 h-9"
-                  />
-                </div>
-                <Button type="submit" size="sm" className="h-9">Buscar</Button>
-                {cadastrosSearch && (
-                  <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => { setCadastrosSearch(""); loadCadastros(1, ""); }}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </form>
 
               {cadastrosLoading && cadastrosItems.length === 0 ? (
                 <div className="space-y-2 py-4">
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="h-12 bg-card/50 border border-border animate-pulse rounded-lg" />
+                    <div key={i} className="h-14 bg-card/50 border border-border animate-pulse rounded-lg" />
                   ))}
                 </div>
               ) : (
@@ -1217,60 +1232,141 @@ function BancoDeDadosPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
-                        <th className="text-left px-3 py-2.5 font-medium w-8" />
+                        <th className="text-left px-3 py-2.5 font-medium w-9" />
                         <th className="text-left px-3 py-2.5 font-medium">Nome</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Telefone</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Estado</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Cadastrado em</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Localização</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Funil</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Bot</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Último contato</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Cadastro</th>
                         <th className="w-9 px-3 py-2.5" />
                       </tr>
                     </thead>
                     <tbody>
                       {cadastrosItems.map((prospect) => {
                         const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
+                        const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
                         const initials = prospect.name.slice(0, 2).toUpperCase();
+                        const stage = prospect.crmContact?.stage;
+                        const stageColor = stage?.color || null;
+                        const lastContactAt = prospect.crmContact?.lastContactAt;
+                        const botEnabled = prospect.crmContact?.botEnabled;
+                        const hasCrm = !!prospect.crmContact;
+
                         return (
                           <tr
                             key={prospect.id}
                             onClick={() => setPopupProspect(prospect)}
-                            className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/30 transition-colors"
+                            className="border-b border-border/50 last:border-0 cursor-pointer transition-colors hover:bg-muted/20 relative"
+                            style={stageColor ? { borderLeft: `3px solid ${stageColor}40` } : { borderLeft: "3px solid transparent" }}
                           >
-                            <td className="px-3 py-2">
+                            {/* Avatar */}
+                            <td className="px-3 py-2.5">
                               {prospect.thumbUrl ? (
-                                <img src={prospect.thumbUrl} alt="" className="w-7 h-7 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                <img src={prospect.thumbUrl} alt="" className="w-8 h-8 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                               ) : (
-                                <div className="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center text-[10px] font-bold text-blue-300">{initials}</div>
+                                <div
+                                  className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold"
+                                  style={stageColor
+                                    ? { backgroundColor: stageColor + "22", color: stageColor }
+                                    : { backgroundColor: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" }
+                                  }
+                                >
+                                  {initials}
+                                </div>
                               )}
                             </td>
-                            <td className="px-3 py-2">
-                              <span className="font-medium truncate block max-w-[180px]">{prospect.name}</span>
-                              {prospect.crmContact?.stage && (
-                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: prospect.crmContact.stage.color + "33", color: prospect.crmContact.stage.color }}>
-                                  {prospect.crmContact.stage.name}
-                                </span>
+
+                            {/* Nome */}
+                            <td className="px-3 py-2.5 max-w-[200px]">
+                              <span className="font-medium truncate block">{prospect.name}</span>
+                              {!hasCrm && (
+                                <span className="text-[10px] text-muted-foreground/50">Sem contato</span>
                               )}
                             </td>
-                            <td className="px-3 py-2 hidden sm:table-cell">
+
+                            {/* Telefone + botão WA */}
+                            <td className="px-3 py-2.5 hidden sm:table-cell">
                               {phone ? (
-                                <span className="text-xs text-emerald-400 font-mono">{phone}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-mono text-foreground/80">{phone}</span>
+                                  <a
+                                    href={waUrl!}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-[#25D366] hover:text-[#1ebe5d] transition-colors flex-shrink-0"
+                                    title="Abrir no WhatsApp"
+                                  >
+                                    <MessageCircle className="h-3.5 w-3.5" />
+                                  </a>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/40 italic">Sem telefone</span>
+                              )}
+                            </td>
+
+                            {/* Localização */}
+                            <td className="px-3 py-2.5 hidden md:table-cell">
+                              {prospect.city || prospect.state ? (
+                                <div className="flex flex-col gap-0.5">
+                                  {prospect.city && <span className="text-xs text-foreground/80 truncate max-w-[120px]">{prospect.city}</span>}
+                                  {prospect.state && <span className="text-[10px] font-mono text-muted-foreground">{prospect.state}</span>}
+                                </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground/40 italic">–</span>
                               )}
                             </td>
-                            <td className="px-3 py-2 hidden md:table-cell">
-                              {prospect.state ? (
-                                <span className="text-xs font-mono bg-muted/60 border border-border px-2 py-0.5 rounded-full">{prospect.state}</span>
+
+                            {/* Funil */}
+                            <td className="px-3 py-2.5 hidden lg:table-cell">
+                              {stage ? (
+                                <span
+                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap"
+                                  style={{ backgroundColor: stageColor + "22", color: stageColor, borderColor: stageColor + "44" }}
+                                >
+                                  {stage.name}
+                                </span>
                               ) : (
-                                <span className="text-xs text-muted-foreground/40 italic">–</span>
+                                <span className="text-[11px] text-muted-foreground/50 italic">Novo</span>
                               )}
                             </td>
-                            <td className="px-3 py-2 hidden lg:table-cell text-xs text-muted-foreground">
-                              {new Date(prospect.firstSeenAt).toLocaleDateString("pt-BR")}
+
+                            {/* Bot */}
+                            <td className="px-3 py-2.5 hidden xl:table-cell">
+                              {hasCrm ? (
+                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${botEnabled ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-muted/40 text-muted-foreground border-border"}`}>
+                                  {botEnabled ? "Bot ativo" : "Bot off"}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/30">–</span>
+                              )}
                             </td>
-                            <td className="px-3 py-2">
+
+                            {/* Último contato */}
+                            <td className="px-3 py-2.5 hidden xl:table-cell">
+                              {lastContactAt ? (
+                                <span className="text-xs text-muted-foreground" title={new Date(lastContactAt * 1000).toLocaleString("pt-BR")}>
+                                  {timeAgo(lastContactAt * 1000)}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/30">–</span>
+                              )}
+                            </td>
+
+                            {/* Data cadastro */}
+                            <td className="px-3 py-2.5 hidden lg:table-cell">
+                              <span className="text-xs text-muted-foreground" title={new Date(prospect.firstSeenAt).toLocaleString("pt-BR")}>
+                                {timeAgo(new Date(prospect.firstSeenAt).getTime())}
+                              </span>
+                            </td>
+
+                            {/* Ações */}
+                            <td className="px-3 py-2.5">
                               <button
                                 onClick={(e) => { e.stopPropagation(); setPopupProspect(prospect); }}
-                                className="text-muted-foreground/40 hover:text-foreground transition-colors"
+                                className="text-muted-foreground/30 hover:text-foreground transition-colors"
                               >
                                 <ExternalLink className="h-3.5 w-3.5" />
                               </button>
@@ -1280,7 +1376,7 @@ function BancoDeDadosPage() {
                       })}
                       {cadastrosItems.length === 0 && !cadastrosLoading && (
                         <tr>
-                          <td colSpan={6} className="px-3 py-12 text-center text-muted-foreground">
+                          <td colSpan={9} className="px-3 py-12 text-center text-muted-foreground">
                             Nenhum cadastro encontrado.
                           </td>
                         </tr>
@@ -1300,7 +1396,7 @@ function BancoDeDadosPage() {
                     className="gap-2"
                   >
                     {cadastrosLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}
-                    Carregar mais ({cadastrosTotal - cadastrosItems.length} restantes)
+                    Carregar mais ({(cadastrosTotal - cadastrosItems.length).toLocaleString("pt-BR")} restantes)
                   </Button>
                 </div>
               )}

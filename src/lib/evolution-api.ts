@@ -563,6 +563,7 @@ export interface ProspectCrmContact {
   id: string;
   botEnabled: boolean;
   stage: { name: string; color: string } | null;
+  lastContactAt: number | null;
   messages: { text: string; messageTimestamp: number; fromMe: boolean }[];
 }
 
