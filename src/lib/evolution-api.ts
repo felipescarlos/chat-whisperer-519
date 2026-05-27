@@ -578,6 +578,7 @@ export interface Prospect {
   sourceUrls: Record<string, string>;
   thumbUrl: string | null;
   importedContactId: string | null;
+  adStatus: number | null;
   firstSeenAt: string;
   lastSeenAt: string;
   crmContact: ProspectCrmContact | null;

@@ -112,6 +112,25 @@ function SourceBadge({ source, href }: { source: string; href?: string }) {
   );
 }
 
+// ─── Ad status badge ─────────────────────────────────────────────────────────
+const AD_STATUS: Record<number, { label: string; cls: string }> = {
+  1: { label: "Ativo",       cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+  0: { label: "Rascunho",    cls: "bg-muted/40 text-muted-foreground border-border" },
+  2: { label: "Em análise",  cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
+  3: { label: "Reprovado",   cls: "bg-red-500/15 text-red-400 border-red-500/30" },
+  7: { label: "Desativado",  cls: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
+};
+
+function AdStatusBadge({ status }: { status: number | null | undefined }) {
+  if (status == null) return <span className="text-xs text-muted-foreground/30">–</span>;
+  const s = AD_STATUS[status] ?? { label: `Status ${status}`, cls: "bg-muted/40 text-muted-foreground border-border" };
+  return (
+    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
+
 // ─── Brazilian cities autocomplete list (major cities per state) ──────────
 const BR_CITIES: { state: string; cities: string[] }[] = [
   { state: "RN", cities: ["Natal","Mossoró","Parnamirim","Caicó","Açu","Currais Novos","São Gonçalo do Amarante","Macaíba"] },
@@ -278,7 +297,10 @@ function ContactPopup({
 
             {/* Anúncios */}
             <div className="space-y-2">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Anúncios</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Anúncios</p>
+                <AdStatusBadge status={prospect.adStatus} />
+              </div>
               {hasAd ? (
                 <div className="space-y-1.5">
                   {adUrls.map(([source, url]) => (
@@ -1517,6 +1539,7 @@ function BancoDeDadosPage() {
                         <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Localização</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Funil</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Bot</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Anúncio</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Último contato</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Cadastro</th>
                         <th className="w-9 px-3 py-2.5" />
@@ -1623,6 +1646,11 @@ function BancoDeDadosPage() {
                               )}
                             </td>
 
+                            {/* Anúncio */}
+                            <td className="px-3 py-2.5 hidden lg:table-cell">
+                              <AdStatusBadge status={prospect.adStatus} />
+                            </td>
+
                             {/* Último contato */}
                             <td className="px-3 py-2.5 hidden xl:table-cell">
                               {lastContactAt ? (
@@ -1655,7 +1683,7 @@ function BancoDeDadosPage() {
                       })}
                       {filteredCadastros.length === 0 && !cadastrosLoading && (
                         <tr>
-                          <td colSpan={9} className="px-3 py-12 text-center text-muted-foreground">
+                          <td colSpan={10} className="px-3 py-12 text-center text-muted-foreground">
                             {cadActiveFilterCount > 0 ? "Nenhum cadastro corresponde aos filtros selecionados." : "Nenhum cadastro encontrado."}
                           </td>
                         </tr>
