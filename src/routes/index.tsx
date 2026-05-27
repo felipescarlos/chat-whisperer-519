@@ -386,7 +386,7 @@ function ConversasPage() {
                 selected?.remoteJid === c.remoteJid && selected?.__instance === c.__instance;
               const ts = c.lastMessage?.messageTimestamp
                 ? Number(c.lastMessage.messageTimestamp) * 1000
-                : new Date(c.updatedAt).getTime();
+                : new Date(c.updatedAt || 0).getTime();
               return (
                 <button
                   key={`${c.__instance}-${c.remoteJid}`}
