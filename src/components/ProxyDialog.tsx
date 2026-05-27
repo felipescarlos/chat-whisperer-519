@@ -21,33 +21,28 @@ import { toast } from "sonner";
 import { ShieldCheck, Sparkles, Loader2, Trash2, Save } from "lucide-react";
 import { getProxy, setProxy, type ProxyConfig } from "@/lib/evolution-api";
 
-// Key assembled at runtime to avoid static-analysis redaction by build tools
-const _gk = ["AIza", "SyCQ4undiq", "K0978s3glH", "fgtZGmmVNW0Flg0"].join("");
-const GEMINI_KEY = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || _gk;
+const AGENT_BASE = "https://wpp.rodrigobernardo.com.br/agent/api";
+const CRM_API_TOKEN = (import.meta.env.VITE_CRM_API_TOKEN as string | undefined) || "";
 
 async function interpretProxyText(text: string): Promise<Partial<ProxyConfig>> {
-  if (!GEMINI_KEY) throw new Error("VITE_GEMINI_API_KEY não configurada");
-
   const prompt =
     `Extraia os dados de proxy do texto abaixo e retorne um JSON com os campos: ` +
     `host, port (string), protocol (http/https/socks4/socks5 — infira pelo contexto, padrão http), ` +
     `username (null se não houver), password (null se não houver). ` +
     `Retorne apenas o JSON, sem explicação. Texto: ${text}`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 256 },
-      }),
+  // Chama o proxy no picjob-agent — a chave do Gemini fica server-side
+  const res = await fetch(`${AGENT_BASE}/ai/parse-proxy`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(CRM_API_TOKEN ? { "x-api-token": CRM_API_TOKEN } : {}),
     },
-  );
+    body: JSON.stringify({ prompt }),
+  });
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");
-    throw new Error(`Gemini ${res.status}: ${errBody || res.statusText}`);
+    throw new Error(`AI proxy ${res.status}: ${errBody || res.statusText}`);
   }
   const data = await res.json();
   const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";

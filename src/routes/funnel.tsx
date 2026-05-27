@@ -1,20 +1,21 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { 
-  Trello, 
-  Search, 
-  Plus, 
-  Settings, 
-  MessageCircle, 
-  Bot, 
-  ArrowLeft, 
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Trello,
+  Search,
+  Plus,
+  Settings,
+  MessageCircle,
+  Bot,
+  ArrowLeft,
   ArrowRight,
   Trash2,
   Pencil,
   PlusCircle,
   Save,
   Check,
-  UserCheck
+  UserCheck,
+  RefreshCw,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,9 @@ function FunnelPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
+  const [draggingContact, setDraggingContact] = useState<CRMContact | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const lastContactsRef = useRef<CRMContact[]>([]);
 
   // New stage form state
   const [newStageName, setNewStageName] = useState("");
@@ -111,12 +115,50 @@ function FunnelPage() {
     }
   }, [search]);
 
-  // Load initial data and poll updates
+  // Solicitar permissão de notificação do browser na montagem
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Load initial data and poll — só quando aba está visível
   useEffect(() => {
     loadCRMData();
-    const interval = setInterval(() => loadCRMData(true), 5000);
+
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      loadCRMData(true);
+    };
+
+    const interval = setInterval(tick, 5000);
     return () => clearInterval(interval);
   }, [loadCRMData]);
+
+  // Detectar mensagens novas e disparar notificação browser
+  useEffect(() => {
+    if (lastContactsRef.current.length === 0) {
+      lastContactsRef.current = contacts;
+      return;
+    }
+    if ("Notification" in window && Notification.permission === "granted") {
+      for (const c of contacts) {
+        const prev = lastContactsRef.current.find((p) => p.id === c.id);
+        const latestMsg = c.messages?.[0];
+        if (!latestMsg || latestMsg.fromMe) continue;
+        const prevMsg = prev?.messages?.[0];
+        const isNew = !prevMsg || latestMsg.messageTimestamp !== prevMsg.messageTimestamp;
+        if (isNew) {
+          const msgText = String(latestMsg.text || "Nova mensagem").slice(0, 100);
+          new Notification(`📩 ${c.name || c.number}`, {
+            body: msgText,
+            icon: "/favicon.ico",
+          });
+        }
+      }
+    }
+    lastContactsRef.current = contacts;
+  }, [contacts]);
 
   // Change contact stage
   const handleMoveContact = async (contactNumber: string, newStageId: string | null) => {
@@ -482,7 +524,14 @@ function FunnelPage() {
               </DialogContent>
             </Dialog>
 
-            <Button variant="outline" size="sm" className="h-9 border-border" onClick={() => loadCRMData()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 border-border gap-1.5"
+              onClick={() => loadCRMData()}
+              title="Recarregar funil (atalho: F5)"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
               Recarregar
             </Button>
           </div>
@@ -491,87 +540,116 @@ function FunnelPage() {
         {/* Quadro Kanban */}
         <div className="flex-1 overflow-x-auto overflow-y-hidden bg-background chat-pattern p-4 fluid-scroll">
           <div className="flex gap-4 h-full items-start" style={{ minWidth: `${(stages.length + 1) * 280}px` }}>
-            
-            {/* Coluna 1: Sem Estágio (Se tiver algum contato nessa condição) */}
+
+            {/* Coluna Sem Estágio */}
             {groupedContacts.unassigned.length > 0 && (
-              <div className="w-[280px] shrink-0 bg-panel/75 backdrop-blur-md rounded-xl border border-border flex flex-col max-h-full glass shadow-panel">
-                {/* Cabeçalho da coluna */}
-                <div className="p-3 border-b border-border flex items-center justify-between bg-panel-header/80 rounded-t-xl">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-slate-400" />
-                    <span className="font-semibold text-sm">Sem Estágio</span>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px] bg-slate-200 text-slate-800 font-bold">
-                    {groupedContacts.unassigned.length}
-                  </Badge>
-                </div>
-                
-                {/* Lista de Contatos */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-2.5 fluid-scroll">
-                  {groupedContacts.unassigned.map(contact => (
-                    <ContactCard 
-                      key={contact.id} 
-                      contact={contact} 
-                      stages={stages} 
-                      onMove={handleMoveContact}
-                      onToggleBot={handleToggleBot}
-                      onNavigate={(num) => navigate({ to: "/", search: { chat: num } })}
-                    />
-                  ))}
-                </div>
-              </div>
+              <KanbanColumn
+                stageId="unassigned"
+                title="Sem Estágio"
+                color="#64748b"
+                items={groupedContacts.unassigned}
+                stages={stages}
+                draggingContact={draggingContact}
+                dragOverStage={dragOverStage}
+                onDragOver={setDragOverStage}
+                onDrop={(targetStageId) => {
+                  if (draggingContact) handleMoveContact(draggingContact.number, targetStageId === "unassigned" ? null : targetStageId);
+                  setDraggingContact(null); setDragOverStage(null);
+                }}
+                onDragStart={setDraggingContact}
+                onDragEnd={() => { setDraggingContact(null); setDragOverStage(null); }}
+                onMove={handleMoveContact}
+                onToggleBot={handleToggleBot}
+                onNavigate={(num) => navigate({ to: "/", search: { chat: num } })}
+              />
             )}
 
             {/* Colunas Dinâmicas dos Estágios */}
-            {stages.map(stage => {
-              const items = groupedContacts[stage.id] || [];
-              return (
-                <div 
-                  key={stage.id} 
-                  className="w-[280px] shrink-0 bg-panel/75 backdrop-blur-md rounded-xl border border-border flex flex-col max-h-full glass shadow-panel"
-                >
-                  {/* Cabeçalho do Estágio */}
-                  <div className="p-3 border-b border-border flex items-center justify-between bg-panel-header/80 rounded-t-xl">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
-                      <span className="font-semibold text-sm truncate" title={stage.name}>
-                        {stage.name}
-                      </span>
-                    </div>
-                    <Badge 
-                      className="text-[10px] text-white font-bold shrink-0"
-                      style={{ backgroundColor: stage.color }}
-                    >
-                      {items.length}
-                    </Badge>
-                  </div>
-
-                  {/* Lista de Cartões de Contato */}
-                  <div className="flex-1 overflow-y-auto p-2 space-y-2.5 fluid-scroll">
-                    {items.length === 0 ? (
-                      <div className="h-24 flex items-center justify-center border border-dashed border-border/50 rounded-lg">
-                        <span className="text-[11px] text-muted-foreground">Nenhum cliente aqui</span>
-                      </div>
-                    ) : (
-                      items.map(contact => (
-                        <ContactCard 
-                          key={contact.id} 
-                          contact={contact} 
-                          stages={stages} 
-                          onMove={handleMoveContact}
-                          onToggleBot={handleToggleBot}
-                          onNavigate={(num) => navigate({ to: "/", search: { chat: num } })}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {stages.map(stage => (
+              <KanbanColumn
+                key={stage.id}
+                stageId={stage.id}
+                title={stage.name}
+                color={stage.color}
+                items={groupedContacts[stage.id] || []}
+                stages={stages}
+                draggingContact={draggingContact}
+                dragOverStage={dragOverStage}
+                onDragOver={setDragOverStage}
+                onDrop={(targetStageId) => {
+                  if (draggingContact) handleMoveContact(draggingContact.number, targetStageId === "unassigned" ? null : targetStageId);
+                  setDraggingContact(null); setDragOverStage(null);
+                }}
+                onDragStart={setDraggingContact}
+                onDragEnd={() => { setDraggingContact(null); setDragOverStage(null); }}
+                onMove={handleMoveContact}
+                onToggleBot={handleToggleBot}
+                onNavigate={(num) => navigate({ to: "/", search: { chat: num } })}
+              />
+            ))}
           </div>
         </div>
       </div>
     </AppShell>
+  );
+}
+
+// ─── Kanban Column ───────────────────────────────────────────────────────────
+interface KanbanColumnProps {
+  stageId: string;
+  title: string;
+  color: string;
+  items: CRMContact[];
+  stages: CRMStage[];
+  draggingContact: CRMContact | null;
+  dragOverStage: string | null;
+  onDragOver: (stageId: string) => void;
+  onDrop: (targetStageId: string) => void;
+  onDragStart: (contact: CRMContact) => void;
+  onDragEnd: () => void;
+  onMove: (num: string, stageId: string | null) => void;
+  onToggleBot: (contact: CRMContact) => void;
+  onNavigate: (num: string) => void;
+}
+
+function KanbanColumn({ stageId, title, color, items, stages, draggingContact, dragOverStage, onDragOver, onDrop, onDragStart, onDragEnd, onMove, onToggleBot, onNavigate }: KanbanColumnProps) {
+  const isDragTarget = dragOverStage === stageId && draggingContact !== null;
+  return (
+    <div
+      className={`w-[280px] shrink-0 bg-panel/75 backdrop-blur-md rounded-xl border flex flex-col max-h-full glass shadow-panel transition-colors ${isDragTarget ? "border-primary/60 bg-primary/5" : "border-border"}`}
+      onDragOver={(e) => { e.preventDefault(); if (draggingContact) onDragOver(stageId); }}
+      onDrop={(e) => { e.preventDefault(); onDrop(stageId); }}
+    >
+      <div className="p-3 border-b border-border flex items-center justify-between bg-panel-header/80 rounded-t-xl">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+          <span className="font-semibold text-sm truncate" title={title}>{title}</span>
+        </div>
+        <Badge className="text-[10px] text-white font-bold shrink-0" style={{ backgroundColor: color }}>
+          {items.length}
+        </Badge>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 space-y-2.5 fluid-scroll">
+        {items.length === 0 ? (
+          <div className={`h-24 flex items-center justify-center border border-dashed rounded-lg transition-colors ${isDragTarget ? "border-primary/60 bg-primary/5" : "border-border/50"}`}>
+            <span className="text-[11px] text-muted-foreground">{isDragTarget ? "Soltar aqui" : "Nenhum cliente aqui"}</span>
+          </div>
+        ) : (
+          items.map(contact => (
+            <ContactCard
+              key={contact.id}
+              contact={contact}
+              stages={stages}
+              onMove={onMove}
+              onToggleBot={onToggleBot}
+              onNavigate={onNavigate}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+            />
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -582,9 +660,11 @@ interface ContactCardProps {
   onMove: (num: string, stageId: string | null) => void;
   onToggleBot: (contact: CRMContact) => void;
   onNavigate: (num: string) => void;
+  onDragStart: (contact: CRMContact) => void;
+  onDragEnd: () => void;
 }
 
-function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate }: ContactCardProps) {
+function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate, onDragStart, onDragEnd }: ContactCardProps) {
   const lastMsg = contact.messages && contact.messages[0];
   const lastMsgText: string = lastMsg ? String(lastMsg.text || getMessageText(lastMsg) || "") : "";
   const lastMsgTime = lastMsg ? lastMsg.messageTimestamp : null;
@@ -607,7 +687,12 @@ function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate }: Conta
   }, [contact.tags]);
 
   return (
-    <div className="p-3 bg-card border border-border/70 rounded-lg hover:shadow-elevated transition-all flex flex-col gap-2 group relative">
+    <div
+      className="p-3 bg-card border border-border/70 rounded-lg hover:shadow-elevated transition-all flex flex-col gap-2 group relative cursor-grab active:cursor-grabbing"
+      draggable
+      onDragStart={() => onDragStart(contact)}
+      onDragEnd={onDragEnd}
+    >
       
       {/* Header do card: Nome / Tempo */}
       <div className="flex justify-between items-start gap-1">

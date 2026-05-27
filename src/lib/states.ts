@@ -1,0 +1,32 @@
+// Fonte única de verdade para estados brasileiros — usado por radar.tsx e banco-de-dados.tsx
+export const STATES = [
+  { code: "AC", label: "Acre" },
+  { code: "AL", label: "Alagoas" },
+  { code: "AP", label: "Amapá" },
+  { code: "AM", label: "Amazonas" },
+  { code: "BA", label: "Bahia" },
+  { code: "CE", label: "Ceará" },
+  { code: "DF", label: "Distrito Federal" },
+  { code: "ES", label: "Espírito Santo" },
+  { code: "GO", label: "Goiás" },
+  { code: "MA", label: "Maranhão" },
+  { code: "MT", label: "Mato Grosso" },
+  { code: "MS", label: "Mato Grosso do Sul" },
+  { code: "MG", label: "Minas Gerais" },
+  { code: "PA", label: "Pará" },
+  { code: "PB", label: "Paraíba" },
+  { code: "PR", label: "Paraná" },
+  { code: "PE", label: "Pernambuco" },
+  { code: "PI", label: "Piauí" },
+  { code: "RJ", label: "Rio de Janeiro" },
+  { code: "RN", label: "Rio Grande do Norte" },
+  { code: "RS", label: "Rio Grande do Sul" },
+  { code: "RO", label: "Rondônia" },
+  { code: "RR", label: "Roraima" },
+  { code: "SC", label: "Santa Catarina" },
+  { code: "SP", label: "São Paulo" },
+  { code: "SE", label: "Sergipe" },
+  { code: "TO", label: "Tocantins" },
+] as const;
+
+export type StateCode = (typeof STATES)[number]["code"];

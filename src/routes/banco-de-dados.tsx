@@ -7,6 +7,7 @@ import {
   RefreshCw, MessageCircle, MapPin, Square, Trash2, CheckSquare,
   FolderInput, AlertTriangle, X, LayoutList, LayoutGrid, Upload,
   FolderPlus, Bot, Tag, Calendar, ExternalLink, Phone, SlidersHorizontal, ChevronDown,
+  ArrowUpDown, ChevronUp,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import {
   fetchProspectCrmInfo, importProspects,
 } from "@/lib/evolution-api";
 import { ScrapeLiveFeed } from "@/components/ScrapeLiveFeed";
+import { STATES } from "@/lib/states";
 
 export const Route = createFileRoute("/banco-de-dados")({
   head: () => ({
@@ -46,35 +48,6 @@ function timeAgo(ms: number): string {
   return `há ${Math.floor(months / 12)}a`;
 }
 
-const STATES = [
-  { code: "AC", label: "Acre" },
-  { code: "AL", label: "Alagoas" },
-  { code: "AP", label: "Amapá" },
-  { code: "AM", label: "Amazonas" },
-  { code: "BA", label: "Bahia" },
-  { code: "CE", label: "Ceará" },
-  { code: "DF", label: "Distrito Federal" },
-  { code: "ES", label: "Espírito Santo" },
-  { code: "GO", label: "Goiás" },
-  { code: "MA", label: "Maranhão" },
-  { code: "MT", label: "Mato Grosso" },
-  { code: "MS", label: "Mato Grosso do Sul" },
-  { code: "MG", label: "Minas Gerais" },
-  { code: "PA", label: "Pará" },
-  { code: "PB", label: "Paraíba" },
-  { code: "PR", label: "Paraná" },
-  { code: "PE", label: "Pernambuco" },
-  { code: "PI", label: "Piauí" },
-  { code: "RJ", label: "Rio de Janeiro" },
-  { code: "RN", label: "Rio Grande do Norte" },
-  { code: "RS", label: "Rio Grande do Sul" },
-  { code: "RO", label: "Rondônia" },
-  { code: "RR", label: "Roraima" },
-  { code: "SC", label: "Santa Catarina" },
-  { code: "SP", label: "São Paulo" },
-  { code: "SE", label: "Sergipe" },
-  { code: "TO", label: "Tocantins" },
-];
 
 const SOURCES_LABELS: Record<string, string> = {
   fatalmodel: "Fatal Model",
@@ -384,8 +357,19 @@ function ContactPopup({
                   )}
                 </div>
               ) : (
-                <div className="flex items-center gap-2 bg-muted/20 border border-border/40 rounded-lg px-3 py-2.5">
+                <div className="flex flex-col gap-2 bg-muted/20 border border-border/40 rounded-lg px-3 py-3">
                   <p className="text-xs text-muted-foreground italic">Ainda não está no CRM.</p>
+                  {waUrl && (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-[#25D366]/15 border border-[#25D366]/30 text-[#25D366] text-xs font-medium hover:bg-[#25D366]/25 transition-colors self-start"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" /> Iniciar conversa no WhatsApp
+                    </a>
+                  )}
                 </div>
               )}
             </div>
@@ -683,6 +667,13 @@ function BancoDeDadosPage() {
   const [cadFilterHasAd, setCadFilterHasAd] = useState<"yes" | "no" | null>(null);
   const cadLastStateIdx = useRef(-1);
   const cadLastStageIdx = useRef(-1);
+  const [cadSortBy, setCadSortBy] = useState<"name" | "lastContactAt" | "firstSeenAt" | "adStatus">("firstSeenAt");
+  const [cadSortDir, setCadSortDir] = useState<"asc" | "desc">("desc");
+
+  const handleCadSort = (col: typeof cadSortBy) => {
+    if (cadSortBy === col) setCadSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setCadSortBy(col); setCadSortDir(col === "name" ? "asc" : "desc"); }
+  };
   const [items, setItems] = useState<Prospect[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -973,6 +964,30 @@ function BancoDeDadosPage() {
     }
   };
 
+  const handleExportStateCSV = async () => {
+    if (!filterState) return;
+    toast.info("Preparando planilha do estado...");
+    try {
+      const data = await fetchProspects({ state: filterState === "SEM_ESTADO" ? "" : filterState, limit: 10000 });
+      if (!data.items?.length) { toast.error("Nenhum prospect encontrado neste estado."); return; }
+      const headers = ["Nome", "WhatsApp", "Cidade", "Estado", "Portais"];
+      const rows = data.items.map((p) => [
+        p.name,
+        p.whatsappE164 || "Sem WhatsApp",
+        p.city || "",
+        p.state || "",
+        p.sources.map((s) => SOURCES_LABELS[s] || s).join(", "),
+      ]);
+      const csv = [headers.join(";"), ...rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";"))].join("\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `leads_${filterState.toLowerCase()}_todos.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      toast.success(`${data.items.length} leads exportados!`);
+    } catch { toast.error("Falha ao exportar estado."); }
+  };
+
   const handleDeleteSelected = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
@@ -1103,15 +1118,28 @@ function BancoDeDadosPage() {
     [...new Set(cadastrosItems.map(p => p.crmContact?.stage?.name).filter((s): s is string => !!s))].sort(),
     [cadastrosItems]
   );
-  const filteredCadastros = useMemo(() => cadastrosItems.filter(p => {
-    if (cadFilterStates.length > 0 && !cadFilterStates.includes(p.state || "")) return false;
-    if (cadFilterStages.length > 0 && !cadFilterStages.includes(p.crmContact?.stage?.name || "")) return false;
-    if (cadFilterHasPhone && !p.whatsappE164) return false;
-    if (cadFilterHasCrm && !p.crmContact) return false;
-    if (cadFilterHasAd === "yes" && p.adStatus !== 1) return false;
-    if (cadFilterHasAd === "no" && p.adStatus === 1) return false;
-    return true;
-  }), [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm, cadFilterHasAd]);
+  const filteredCadastros = useMemo(() => {
+    const filtered = cadastrosItems.filter(p => {
+      if (cadFilterStates.length > 0 && !cadFilterStates.includes(p.state || "")) return false;
+      if (cadFilterStages.length > 0 && !cadFilterStages.includes(p.crmContact?.stage?.name || "")) return false;
+      if (cadFilterHasPhone && !p.whatsappE164) return false;
+      if (cadFilterHasCrm && !p.crmContact) return false;
+      if (cadFilterHasAd === "yes" && p.adStatus !== 1) return false;
+      if (cadFilterHasAd === "no" && p.adStatus === 1) return false;
+      return true;
+    });
+    return [...filtered].sort((a, b) => {
+      let cmp = 0;
+      if (cadSortBy === "name") cmp = (a.name || "").localeCompare(b.name || "", "pt-BR");
+      else if (cadSortBy === "lastContactAt") {
+        const ta = a.crmContact?.lastContactAt ?? 0;
+        const tb = b.crmContact?.lastContactAt ?? 0;
+        cmp = ta - tb;
+      } else if (cadSortBy === "adStatus") cmp = (a.adStatus ?? -1) - (b.adStatus ?? -1);
+      else cmp = new Date(a.firstSeenAt).getTime() - new Date(b.firstSeenAt).getTime();
+      return cadSortDir === "desc" ? -cmp : cmp;
+    });
+  }, [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm, cadFilterHasAd, cadSortBy, cadSortDir]);
   const cadActiveFilterCount = cadFilterStates.length + cadFilterStages.length + (cadFilterHasPhone ? 1 : 0) + (cadFilterHasCrm ? 1 : 0) + (cadFilterHasAd ? 1 : 0);
 
   const toggleMultiFilter = (
@@ -1304,6 +1332,15 @@ function BancoDeDadosPage() {
                 </h2>
 
                 <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportStateCSV}
+                    className="h-7 px-3 text-xs gap-1.5 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5" />
+                    Exportar estado
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1543,14 +1580,22 @@ function BancoDeDadosPage() {
                     <thead>
                       <tr className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
                         <th className="text-left px-3 py-2.5 font-medium w-9" />
-                        <th className="text-left px-3 py-2.5 font-medium">Nome</th>
+                        <th className="text-left px-3 py-2.5 font-medium cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("name")}>
+                          <span className="flex items-center gap-1">Nome {cadSortBy === "name" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
+                        </th>
                         <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Telefone</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Localização</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Funil</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Bot</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Anúncio</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Último contato</th>
-                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Cadastro</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("adStatus")}>
+                          <span className="flex items-center gap-1">Anúncio {cadSortBy === "adStatus" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
+                        </th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("lastContactAt")}>
+                          <span className="flex items-center gap-1">Último contato {cadSortBy === "lastContactAt" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
+                        </th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("firstSeenAt")}>
+                          <span className="flex items-center gap-1">Cadastro {cadSortBy === "firstSeenAt" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
+                        </th>
                         <th className="w-9 px-3 py-2.5" />
                       </tr>
                     </thead>
@@ -1739,7 +1784,7 @@ function BancoDeDadosPage() {
                       {filterCity}
                     </h2>
                     <p className="text-xs text-muted-foreground">
-                      {stateLabel} ({filterState}) · {total} prospects
+                      {stateLabel} ({filterState}) · {sortedItems.length !== total ? `${sortedItems.length} de ` : ""}{total} prospects
                     </p>
                   </div>
                 </div>
@@ -2049,7 +2094,7 @@ function BancoDeDadosPage() {
                     {sortedItems.map((prospect) => {
                       const initials = prospect.name.slice(0, 2).toUpperCase();
                       const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
-                      const waUrl = phone ? `https://wa.me/${phone}` : null;
+                      const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
                       const isSelected = selectedIds.has(prospect.id);
                       const idx = sortedItems.indexOf(prospect);
                       return (
@@ -2271,20 +2316,23 @@ function BancoDeDadosPage() {
 
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cidade</label>
-                  <select
+                  <input
+                    list="move-city-list"
                     value={moveTargetCity}
                     onChange={(e) => setMoveTargetCity(e.target.value)}
                     disabled={!moveTargetState}
+                    placeholder="Selecione ou digite uma cidade…"
                     className="w-full h-10 rounded-lg border border-border bg-muted/40 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-50"
-                  >
-                    <option value="">Selecione uma cidade…</option>
+                  />
+                  <datalist id="move-city-list">
                     {sortedStates
                       .find(([code]) => code === moveTargetState)?.[1]
                       .cities.filter((c) => !(moveTargetState === filterState && c.city === filterCity))
-                      .map(({ city }) => (
-                        <option key={city} value={city}>{city}</option>
-                      ))}
-                  </select>
+                      .map(({ city }) => <option key={city} value={city} />)}
+                    {BR_CITIES.find((s) => s.state === moveTargetState)?.cities.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">

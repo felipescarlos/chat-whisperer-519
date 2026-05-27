@@ -16,6 +16,7 @@ import {
   triggerScrape, clearProspects, fetchRoutines, createRoutine,
   toggleRoutine, deleteRoutine,
 } from "@/lib/evolution-api";
+import { STATES } from "@/lib/states";
 
 export const Route = createFileRoute("/radar")({
   head: () => ({
@@ -26,32 +27,6 @@ export const Route = createFileRoute("/radar")({
   }),
   component: RadarPage,
 });
-
-const STATES = [
-  { code: "RN", label: "Rio Grande do Norte" },
-  { code: "CE", label: "Ceará" },
-  { code: "PB", label: "Paraíba" },
-  { code: "PE", label: "Pernambuco" },
-  { code: "AL", label: "Alagoas" },
-  { code: "SE", label: "Sergipe" },
-  { code: "BA", label: "Bahia" },
-  { code: "PI", label: "Piauí" },
-  { code: "MA", label: "Maranhão" },
-  { code: "SP", label: "São Paulo" },
-  { code: "RJ", label: "Rio de Janeiro" },
-  { code: "MG", label: "Minas Gerais" },
-  { code: "ES", label: "Espírito Santo" },
-  { code: "PR", label: "Paraná" },
-  { code: "SC", label: "Santa Catarina" },
-  { code: "RS", label: "Rio Grande do Sul" },
-  { code: "GO", label: "Goiás" },
-  { code: "DF", label: "Distrito Federal" },
-  { code: "MT", label: "Mato Grosso" },
-  { code: "MS", label: "Mato Grosso do Sul" },
-  { code: "PA", label: "Pará" },
-  { code: "AM", label: "Amazonas" },
-  { code: "TO", label: "Tocantins" },
-];
 
 function ScrapeStatusBanner({ jobState }: { jobState: ScrapeJobState | null }) {
   if (!jobState || jobState.status === "idle") return null;

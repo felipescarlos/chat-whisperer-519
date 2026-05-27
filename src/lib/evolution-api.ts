@@ -1,17 +1,18 @@
 // Evolution API v2 client
 export const EVOLUTION_BASE_URL = "https://wpp.rodrigobernardo.com.br";
-export const EVOLUTION_API_KEY = "Bp7UVb0Qg4bsDivvzNdOsjSZfRC07QGP";
 
-const headers = {
-  "Content-Type": "application/json",
-  apikey: EVOLUTION_API_KEY,
-};
+// Chave de API nunca mais hardcoded — todas as chamadas à Evolution API
+// passam pelo proxy no picjob-agent (rota /agent/api/evo/*) que injeta
+// a apikey server-side. Desta forma a chave nunca aparece no bundle público.
+const CRM_API_TOKEN = (import.meta.env.VITE_CRM_API_TOKEN as string | undefined) || "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${EVOLUTION_BASE_URL}${path}`, {
+  // Usa o proxy do agent em vez de chamar Evolution API diretamente
+  const res = await fetch(`${EVOLUTION_BASE_URL}/agent/api/evo${path}`, {
     ...init,
     headers: {
-      ...headers,
+      "Content-Type": "application/json",
+      ...(CRM_API_TOKEN ? { "x-api-token": CRM_API_TOKEN } : {}),
       ...(init?.headers || {}),
     },
   });
@@ -423,6 +424,7 @@ async function crmRequest<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(CRM_API_TOKEN ? { "x-api-token": CRM_API_TOKEN } : {}),
       ...(init?.headers || {}),
     },
   });
@@ -445,6 +447,7 @@ async function scraperRequest<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(CRM_API_TOKEN ? { "x-api-token": CRM_API_TOKEN } : {}),
       ...(init?.headers || {}),
     },
   });
