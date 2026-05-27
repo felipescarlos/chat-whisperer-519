@@ -104,6 +104,22 @@ function AdStatusBadge({ status }: { status: number | null | undefined }) {
   );
 }
 
+// ─── Origin badge ─────────────────────────────────────────────────────────────
+function OriginBadge({ hasCrm }: { hasCrm: boolean }) {
+  if (hasCrm) {
+    return (
+      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap bg-violet-500/15 text-violet-400 border-violet-500/30">
+        Via WhatsApp
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap bg-teal-500/15 text-teal-400 border-teal-500/30">
+      Orgânico
+    </span>
+  );
+}
+
 // ─── Brazilian cities autocomplete list (major cities per state) ──────────
 const BR_CITIES: { state: string; cities: string[] }[] = [
   { state: "RN", cities: ["Natal","Mossoró","Parnamirim","Caicó","Açu","Currais Novos","São Gonçalo do Amarante","Macaíba"] },
@@ -258,10 +274,22 @@ function ContactPopup({
                 </div>
               </div>
 
-              {/* Coluna direita — datas e origem */}
+              {/* Coluna direita — origem e datas */}
               <div className="space-y-3">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Datas</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Origem</p>
                 <div className="space-y-2">
+                  <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Canal de entrada</p>
+                      <p className="text-sm font-medium mt-0.5">
+                        {contact ? "Via WhatsApp" : "Orgânico"}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                        {contact ? "Abordado pelo CRM" : "Provavelmente via Google"}
+                      </p>
+                    </div>
+                    <OriginBadge hasCrm={!!contact} />
+                  </div>
                   <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
                     <p className="text-[10px] text-muted-foreground">Cadastrado em</p>
                     <p className="text-sm font-medium">{new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>
@@ -276,10 +304,10 @@ function ContactPopup({
               </div>
             </div>
 
-            {/* Anúncios */}
+            {/* Situação no site */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Anúncios</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Situação no site</p>
                 <AdStatusBadge status={prospect.adStatus} />
               </div>
               {adUrls.length > 0 ? (
@@ -665,6 +693,7 @@ function BancoDeDadosPage() {
   const [cadFilterHasPhone, setCadFilterHasPhone] = useState(false);
   const [cadFilterHasCrm, setCadFilterHasCrm] = useState(false);
   const [cadFilterHasAd, setCadFilterHasAd] = useState<"yes" | "no" | null>(null);
+  const [cadFilterOrigin, setCadFilterOrigin] = useState<"organic" | "whatsapp" | null>(null);
   const cadLastStateIdx = useRef(-1);
   const cadLastStageIdx = useRef(-1);
   const [cadSortBy, setCadSortBy] = useState<"name" | "lastContactAt" | "firstSeenAt" | "adStatus">("firstSeenAt");
@@ -1126,6 +1155,8 @@ function BancoDeDadosPage() {
       if (cadFilterHasCrm && !p.crmContact) return false;
       if (cadFilterHasAd === "yes" && p.adStatus !== 1) return false;
       if (cadFilterHasAd === "no" && p.adStatus === 1) return false;
+      if (cadFilterOrigin === "organic" && p.crmContact) return false;
+      if (cadFilterOrigin === "whatsapp" && !p.crmContact) return false;
       return true;
     });
     return [...filtered].sort((a, b) => {
@@ -1139,8 +1170,8 @@ function BancoDeDadosPage() {
       else cmp = new Date(a.firstSeenAt).getTime() - new Date(b.firstSeenAt).getTime();
       return cadSortDir === "desc" ? -cmp : cmp;
     });
-  }, [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm, cadFilterHasAd, cadSortBy, cadSortDir]);
-  const cadActiveFilterCount = cadFilterStates.length + cadFilterStages.length + (cadFilterHasPhone ? 1 : 0) + (cadFilterHasCrm ? 1 : 0) + (cadFilterHasAd ? 1 : 0);
+  }, [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm, cadFilterHasAd, cadFilterOrigin, cadSortBy, cadSortDir]);
+  const cadActiveFilterCount = cadFilterStates.length + cadFilterStages.length + (cadFilterHasPhone ? 1 : 0) + (cadFilterHasCrm ? 1 : 0) + (cadFilterHasAd ? 1 : 0) + (cadFilterOrigin ? 1 : 0);
 
   const toggleMultiFilter = (
     value: string,
@@ -1521,6 +1552,18 @@ function BancoDeDadosPage() {
                     >
                       Sem anúncio
                     </button>
+                    <button
+                      onClick={() => setCadFilterOrigin(v => v === "organic" ? null : "organic")}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterOrigin === "organic" ? "bg-teal-500/15 border-teal-500/50 text-teal-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
+                    >
+                      Orgânicos
+                    </button>
+                    <button
+                      onClick={() => setCadFilterOrigin(v => v === "whatsapp" ? null : "whatsapp")}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterOrigin === "whatsapp" ? "bg-violet-500/15 border-violet-500/50 text-violet-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
+                    >
+                      Via WhatsApp
+                    </button>
                   </div>
 
                   {/* Estado */}
@@ -1587,8 +1630,9 @@ function BancoDeDadosPage() {
                         <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Localização</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Funil</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell">Bot</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Origem</th>
                         <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("adStatus")}>
-                          <span className="flex items-center gap-1">Anúncio {cadSortBy === "adStatus" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
+                          <span className="flex items-center gap-1">Situação no site {cadSortBy === "adStatus" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
                         </th>
                         <th className="text-left px-3 py-2.5 font-medium hidden xl:table-cell cursor-pointer hover:text-foreground select-none" onClick={() => handleCadSort("lastContactAt")}>
                           <span className="flex items-center gap-1">Último contato {cadSortBy === "lastContactAt" ? (cadSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}</span>
@@ -1700,7 +1744,12 @@ function BancoDeDadosPage() {
                               )}
                             </td>
 
-                            {/* Anúncio */}
+                            {/* Origem */}
+                            <td className="px-3 py-2.5 hidden lg:table-cell">
+                              <OriginBadge hasCrm={!!prospect.crmContact} />
+                            </td>
+
+                            {/* Situação no site */}
                             <td className="px-3 py-2.5 hidden lg:table-cell">
                               <AdStatusBadge status={prospect.adStatus} />
                             </td>
@@ -1737,7 +1786,7 @@ function BancoDeDadosPage() {
                       })}
                       {filteredCadastros.length === 0 && !cadastrosLoading && (
                         <tr>
-                          <td colSpan={10} className="px-3 py-12 text-center text-muted-foreground">
+                          <td colSpan={11} className="px-3 py-12 text-center text-muted-foreground">
                             {cadActiveFilterCount > 0 ? "Nenhum cadastro corresponde aos filtros selecionados." : "Nenhum cadastro encontrado."}
                           </td>
                         </tr>
