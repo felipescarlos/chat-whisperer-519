@@ -586,14 +586,14 @@ interface ContactCardProps {
 
 function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate }: ContactCardProps) {
   const lastMsg = contact.messages && contact.messages[0];
-  const lastMsgText = lastMsg ? (lastMsg.text || getMessageText(lastMsg) || "") : "";
+  const lastMsgText: string = lastMsg ? String(lastMsg.text || getMessageText(lastMsg) || "") : "";
   const lastMsgTime = lastMsg ? lastMsg.messageTimestamp : null;
   const lastMsgFromMe = lastMsg ? (lastMsg.fromMe !== undefined ? lastMsg.fromMe : !!lastMsg.key?.fromMe) : false;
 
   // Format short timestamp
   const shortTime = useMemo(() => {
     if (!lastMsgTime) return "";
-    const d = new Date(lastMsgTime * 1000);
+    const d = new Date(Number(lastMsgTime) * 1000);
     const now = new Date();
     if (d.toDateString() === now.toDateString()) {
       return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });

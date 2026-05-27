@@ -720,7 +720,7 @@ function BancoDeDadosPage() {
         limit: 5000,
       });
       
-      if (!data.items || data.sortedItems.length === 0) {
+      if (!data.items || data.items.length === 0) {
         toast.error("Nenhum prospect encontrado nesta cidade.");
         return;
       }
@@ -811,7 +811,7 @@ function BancoDeDadosPage() {
     }
   };
 
-  const executeMoveProspects = async (resolution: "replace" | "keep-both" | "skip") => {
+  const executeMoveProspects = async (resolution: "replace" | "keep-both" | "skip" | "merge") => {
     setMoving(true);
     const originCity = filterCity;
     const originState = filterState;
@@ -943,7 +943,7 @@ function BancoDeDadosPage() {
           {/* Stats Cards Banner */}
           {stats && !filterState && activeTab !== "conversoes" && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {activeTab === "scraper" ? [
+              {(activeTab === "scraper" ? [
                 { label: "Total Scraper", value: (stats.bySource.fatalmodel || 0) + (stats.bySource.fotoacomp || 0) + (stats.bySource.skokka || 0), icon: Database, color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
                 { label: "Com WhatsApp", value: stats.withPhone, icon: Wifi, color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
                 { label: "Fatal Model", value: stats.bySource.fatalmodel || 0, icon: Globe, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
@@ -953,7 +953,8 @@ function BancoDeDadosPage() {
                 { label: "Com WhatsApp", value: stats.withPhone, icon: Wifi, color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
                 { label: "Fatal Model", value: stats.bySource.fatalmodel || 0, icon: Globe, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
                 { label: "PhotoAcomp", value: stats.bySource.fotoacomp || 0, icon: Globe, color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
-              ]}.map((s) => (
+              ]).map((s) => (
+
                 <div key={s.label} className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">{s.label}</span>

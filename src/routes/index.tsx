@@ -68,7 +68,7 @@ function formatTime(ts?: number) {
 
 function getChatRemoteJidAlt(c: Chat): string | null {
   if ((c as any).remoteJidAlt) return (c as any).remoteJidAlt as string;
-  if (c.lastMessage?.key?.remoteJidAlt) return c.lastMessage.key.remoteJidAlt;
+  if ((c.lastMessage?.key as any)?.remoteJidAlt) return (c.lastMessage!.key as any).remoteJidAlt as string;
   return null;
 }
 
@@ -174,10 +174,10 @@ function ConversasPage() {
     return list.sort((a, b) => {
       const tsA = a.lastMessage?.messageTimestamp
         ? Number(a.lastMessage.messageTimestamp) * 1000
-        : new Date(a.updatedAt).getTime();
+        : new Date(a.updatedAt || 0).getTime();
       const tsB = b.lastMessage?.messageTimestamp
         ? Number(b.lastMessage.messageTimestamp) * 1000
-        : new Date(b.updatedAt).getTime();
+        : new Date(b.updatedAt || 0).getTime();
       return tsB - tsA;
     });
   }, [contacts, filterInstance]);
@@ -386,7 +386,7 @@ function ConversasPage() {
                 selected?.remoteJid === c.remoteJid && selected?.__instance === c.__instance;
               const ts = c.lastMessage?.messageTimestamp
                 ? Number(c.lastMessage.messageTimestamp) * 1000
-                : new Date(c.updatedAt).getTime();
+                : new Date(c.updatedAt || 0).getTime();
               return (
                 <button
                   key={`${c.__instance}-${c.remoteJid}`}

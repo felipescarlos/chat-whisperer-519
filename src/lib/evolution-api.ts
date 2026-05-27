@@ -592,7 +592,7 @@ export interface ProspectListResponse {
 export interface ProspectStats {
   total: number;
   withPhone: number;
-  bySource: { fatalmodel: number; skokka: number; fotoacomp: number };
+  bySource: { fatalmodel: number; skokka: number; fotoacomp: number; picjob_site?: number };
   multiPortal: number;
   byState: { state: string; count: number }[];
   byStateCity?: { state: string; city: string; count: number }[];
