@@ -267,6 +267,14 @@ function ContactPopup({
                     </p>
                   </div>
 
+                  {/* Email */}
+                  {prospect.email && (
+                    <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+                      <p className="text-[10px] text-muted-foreground">Email</p>
+                      <p className="text-sm font-medium break-all">{prospect.email}</p>
+                    </div>
+                  )}
+
                   {/* ID importado */}
                   {prospect.importedContactId && (
                     <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
