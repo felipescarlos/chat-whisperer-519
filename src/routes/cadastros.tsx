@@ -55,11 +55,21 @@ function AdStatusBadge({ status }: { status: number | null | undefined }) {
   );
 }
 
-function OriginBadge({ hasCrm }: { hasCrm: boolean }) {
+// Cadastros com firstSeenAt anterior a Mariana Silva Rodrigues são pré-CRM (origem desconhecida)
+const PRE_CRM_CUTOFF = new Date("2026-05-22T11:47:45.000Z");
+
+function OriginBadge({ hasCrm, firstSeenAt }: { hasCrm: boolean; firstSeenAt: string }) {
   if (hasCrm) {
     return (
       <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap bg-violet-500/15 text-violet-400 border-violet-500/30">
         Via WhatsApp
+      </span>
+    );
+  }
+  if (new Date(firstSeenAt) < PRE_CRM_CUTOFF) {
+    return (
+      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap bg-zinc-500/15 text-zinc-400 border-zinc-500/30">
+        Pré-CRM
       </span>
     );
   }
@@ -196,12 +206,14 @@ function ContactPopup({ prospect, onClose }: { prospect: Prospect; onClose: () =
                   <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] text-muted-foreground">Canal de entrada</p>
-                      <p className="text-sm font-medium mt-0.5">{contact ? "Via WhatsApp" : "Orgânico"}</p>
+                      <p className="text-sm font-medium mt-0.5">
+                        {contact ? "Via WhatsApp" : new Date(prospect.firstSeenAt) < PRE_CRM_CUTOFF ? "Pré-CRM" : "Orgânico"}
+                      </p>
                       <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                        {contact ? "Abordado pelo CRM" : "Provavelmente via Google"}
+                        {contact ? "Abordado pelo CRM" : new Date(prospect.firstSeenAt) < PRE_CRM_CUTOFF ? "Cadastrado antes do CRM existir" : "Provavelmente via Google"}
                       </p>
                     </div>
-                    <OriginBadge hasCrm={!!contact} />
+                    <OriginBadge hasCrm={!!contact} firstSeenAt={prospect.firstSeenAt} />
                   </div>
                   <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
                     <p className="text-[10px] text-muted-foreground">Cadastrado em</p>
@@ -361,7 +373,7 @@ function CadastrosPage() {
   const [filterHasPhone, setFilterHasPhone] = useState(false);
   const [filterHasCrm, setFilterHasCrm] = useState(false);
   const [filterHasAd, setFilterHasAd] = useState<"yes" | "no" | null>(null);
-  const [filterOrigin, setFilterOrigin] = useState<"organic" | "whatsapp" | null>(null);
+  const [filterOrigin, setFilterOrigin] = useState<"organic" | "whatsapp" | "pre-crm" | null>(null);
   const lastStateIdx = useRef(-1);
   const lastStageIdx = useRef(-1);
 
@@ -411,8 +423,9 @@ function CadastrosPage() {
       if (filterHasCrm && !p.crmContact) return false;
       if (filterHasAd === "yes" && p.adStatus !== 1) return false;
       if (filterHasAd === "no" && p.adStatus === 1) return false;
-      if (filterOrigin === "organic" && p.crmContact) return false;
+      if (filterOrigin === "organic" && (p.crmContact || new Date(p.firstSeenAt) < PRE_CRM_CUTOFF)) return false;
       if (filterOrigin === "whatsapp" && !p.crmContact) return false;
+      if (filterOrigin === "pre-crm" && (p.crmContact || new Date(p.firstSeenAt) >= PRE_CRM_CUTOFF)) return false;
       return true;
     });
     return [...f].sort((a, b) => {
@@ -538,6 +551,7 @@ function CadastrosPage() {
                 <button onClick={() => setFilterHasAd(v => v === "no" ? null : "no")} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${filterHasAd === "no" ? "bg-amber-500/15 border-amber-500/50 text-amber-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}>Sem anúncio</button>
                 <button onClick={() => setFilterOrigin(v => v === "organic" ? null : "organic")} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${filterOrigin === "organic" ? "bg-teal-500/15 border-teal-500/50 text-teal-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}>Orgânicos</button>
                 <button onClick={() => setFilterOrigin(v => v === "whatsapp" ? null : "whatsapp")} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${filterOrigin === "whatsapp" ? "bg-violet-500/15 border-violet-500/50 text-violet-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}>Via WhatsApp</button>
+                <button onClick={() => setFilterOrigin(v => v === "pre-crm" ? null : "pre-crm")} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${filterOrigin === "pre-crm" ? "bg-zinc-500/15 border-zinc-500/50 text-zinc-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}>Pré-CRM</button>
               </div>
               {availableStates.length > 0 && (
                 <div className="space-y-2">
@@ -676,7 +690,7 @@ function CadastrosPage() {
                           ) : <span className="text-xs text-muted-foreground/30">–</span>}
                         </td>
                         <td className="px-3 py-2.5 hidden lg:table-cell">
-                          <OriginBadge hasCrm={hasCrm} />
+                          <OriginBadge hasCrm={hasCrm} firstSeenAt={prospect.firstSeenAt} />
                         </td>
                         <td className="px-3 py-2.5 hidden lg:table-cell">
                           <AdStatusBadge status={prospect.adStatus} />
