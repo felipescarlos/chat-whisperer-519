@@ -151,124 +151,249 @@ function ContactPopup({
   const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
   const initials = prospect.name.slice(0, 2).toUpperCase();
   const contact = crmInfo?.contact;
-
-  const stageColors: Record<string, string> = {
-    "#3b82f6": "bg-blue-500/20 text-blue-300 border-blue-500/30",
-    "#10b981": "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-    "#f59e0b": "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    "#ef4444": "bg-red-500/20 text-red-300 border-red-500/30",
-    "#8b5cf6": "bg-violet-500/20 text-violet-300 border-violet-500/30",
-  };
+  const stageColor = contact?.stage?.color;
+  const hasAd = Object.values(prospect.sourceUrls || {}).some(u => !!u);
+  const adUrls = Object.entries(prospect.sourceUrls || {}).filter(([, u]) => !!u);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header with photo */}
-        <div className="relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative z-10 w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="relative flex-shrink-0">
           {prospect.thumbUrl ? (
-            <img src={prospect.thumbUrl} alt={prospect.name} className="w-full h-40 object-cover" />
+            <img src={prospect.thumbUrl} alt={prospect.name} className="w-full h-44 object-cover" />
           ) : (
-            <div className="w-full h-32 bg-gradient-to-br from-violet-500/20 to-emerald-500/10 flex items-center justify-center">
-              <span className="text-4xl font-bold text-white/30">{initials}</span>
+            <div
+              className="w-full h-28 flex items-center justify-center"
+              style={stageColor
+                ? { background: `linear-gradient(135deg, ${stageColor}30 0%, ${stageColor}10 100%)` }
+                : { background: "linear-gradient(135deg, hsl(var(--muted)) 0%, transparent 100%)" }
+              }
+            >
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold"
+                style={stageColor
+                  ? { backgroundColor: stageColor + "30", color: stageColor }
+                  : { backgroundColor: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" }
+                }
+              >
+                {initials}
+              </div>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent" />
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="absolute bottom-3 left-4">
-            <h2 className="font-bold text-lg leading-tight">{prospect.name}</h2>
-            {phone && <p className="text-xs text-emerald-400 font-mono">{phone}</p>}
+          <div className="absolute bottom-3 left-5 right-16">
+            <div className="flex items-end gap-3">
+              <div>
+                <h2 className="font-bold text-xl leading-tight">{prospect.name}</h2>
+                <p className="text-xs text-muted-foreground font-mono mt-0.5 opacity-60">{prospect.id}</p>
+              </div>
+              {contact?.stage && (
+                <span
+                  className="mb-0.5 text-xs font-semibold px-2.5 py-1 rounded-full border flex-shrink-0"
+                  style={{ backgroundColor: stageColor + "30", color: stageColor, borderColor: stageColor + "50" }}
+                >
+                  {contact.stage.name}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Body */}
-        <div className="p-4 space-y-3">
-          {/* Basic info row */}
-          <div className="flex flex-wrap gap-2 text-xs">
-            {prospect.city && (
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <MapPin className="h-3 w-3" /> {prospect.city}{prospect.state ? ` / ${prospect.state}` : ""}
-              </span>
-            )}
-            <span className="flex items-center gap-1 text-muted-foreground">
-              <Calendar className="h-3 w-3" /> {new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
-            </span>
-          </div>
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1">
+          <div className="p-5 space-y-5">
 
-          <div className="flex flex-wrap gap-1">
-            {prospect.sources.map((s) => (
-              <SourceBadge key={s} source={s} href={prospect.sourceUrls?.[s]} />
-            ))}
-          </div>
+            {/* Grid de informações principais */}
+            <div className="grid grid-cols-2 gap-3">
 
-          <div className="border-t border-border/60 pt-3">
-            {crmLoading ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
-                <RefreshCw className="h-3 w-3 animate-spin" /> Verificando CRM…
-              </div>
-            ) : contact ? (
-              <div className="space-y-2.5">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">No CRM</p>
-                {contact.stage && (
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${stageColors[contact.stage.color] || "bg-muted text-muted-foreground border-border"}`}>
-                      {contact.stage.name}
-                    </span>
+              {/* Coluna esquerda — dados de contato */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Contato</p>
+
+                <div className="space-y-2">
+                  {/* WhatsApp */}
+                  <div className="flex items-center justify-between bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">WhatsApp</p>
+                      <p className="text-sm font-mono font-medium">{prospect.whatsappDisplay || prospect.whatsappE164 || "–"}</p>
+                      {prospect.whatsappE164 && prospect.whatsappDisplay && (
+                        <p className="text-[10px] text-muted-foreground/60 font-mono">{prospect.whatsappE164}</p>
+                      )}
+                    </div>
+                    {waUrl && (
+                      <a href={waUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                        className="w-8 h-8 rounded-full bg-[#25D366]/20 border border-[#25D366]/30 flex items-center justify-center text-[#25D366] hover:bg-[#25D366]/30 transition-colors flex-shrink-0">
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </a>
+                    )}
                   </div>
-                )}
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Bot className="h-3 w-3" /> Bot {contact.botEnabled ? "ativo" : "inativo"}
-                  </span>
-                  {contact.tags && contact.tags !== "" && (
-                    <span className="flex items-center gap-1">
-                      <Tag className="h-3 w-3" /> {contact.tags}
-                    </span>
+
+                  {/* Localização */}
+                  <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground">Localização</p>
+                    <p className="text-sm font-medium">
+                      {prospect.city && prospect.state ? `${prospect.city} · ${prospect.state}`
+                        : prospect.city || prospect.state || <span className="text-muted-foreground/40 italic">Não informado</span>}
+                    </p>
+                  </div>
+
+                  {/* ID importado */}
+                  {prospect.importedContactId && (
+                    <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+                      <p className="text-[10px] text-muted-foreground">ID no site</p>
+                      <p className="text-sm font-mono font-medium">#{prospect.importedContactId}</p>
+                    </div>
                   )}
                 </div>
-                {contact.lastMessage && (
-                  <div className="bg-muted/40 border border-border rounded-lg px-3 py-2 text-xs">
-                    <p className="text-muted-foreground text-[10px] mb-0.5">
-                      Última msg · {contact.lastMessage.fromMe ? "Você" : "Contato"}
-                    </p>
-                    <p className="truncate">{contact.lastMessage.text}</p>
-                  </div>
-                )}
-                {contact.notes && (
-                  <p className="text-xs text-muted-foreground italic line-clamp-2">{contact.notes}</p>
-                )}
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">Ainda não está no CRM.</p>
-            )}
-          </div>
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-1">
-            {waUrl && (
-              <a
-                href={waUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-medium transition-colors"
-              >
-                <MessageCircle className="h-4 w-4" /> WhatsApp
-              </a>
-            )}
-            {contact && (
-              <a
-                href={`/?chat=${contact.number}`}
-                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors"
-              >
-                <ExternalLink className="h-4 w-4" /> Abrir no CRM
-              </a>
-            )}
+              {/* Coluna direita — datas e origem */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Datas</p>
+                <div className="space-y-2">
+                  <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground">Cadastrado em</p>
+                    <p className="text-sm font-medium">{new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>
+                    <p className="text-[10px] text-muted-foreground/60">{timeAgo(new Date(prospect.firstSeenAt).getTime())}</p>
+                  </div>
+                  <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground">Última atualização</p>
+                    <p className="text-sm font-medium">{new Date(prospect.lastSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>
+                    <p className="text-[10px] text-muted-foreground/60">{timeAgo(new Date(prospect.lastSeenAt).getTime())}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Anúncios */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Anúncios</p>
+              {hasAd ? (
+                <div className="space-y-1.5">
+                  {adUrls.map(([source, url]) => (
+                    <a
+                      key={source}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2 hover:bg-emerald-500/10 transition-colors group"
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-emerald-400 font-medium uppercase">{SOURCES_LABELS[source] || source}</p>
+                        <p className="text-xs text-muted-foreground truncate">{url}</p>
+                      </div>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground/40 group-hover:text-emerald-400 transition-colors flex-shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                  <p className="text-xs text-amber-400">Sem anúncio publicado</p>
+                </div>
+              )}
+            </div>
+
+            {/* CRM */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">CRM</p>
+              {crmLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse bg-muted/30 border border-border/60 rounded-lg px-3 py-3">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Verificando…
+                </div>
+              ) : contact ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {contact.stage && (
+                    <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+                      <p className="text-[10px] text-muted-foreground">Etapa do funil</p>
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded-full border mt-1 inline-block"
+                        style={{ backgroundColor: stageColor + "22", color: stageColor, borderColor: stageColor + "44" }}
+                      >
+                        {contact.stage.name}
+                      </span>
+                    </div>
+                  )}
+                  <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground">Bot</p>
+                    <p className={`text-sm font-medium mt-0.5 ${contact.botEnabled ? "text-emerald-400" : "text-muted-foreground"}`}>
+                      {contact.botEnabled ? "Ativo" : "Inativo"}
+                    </p>
+                  </div>
+                  {contact.tags && contact.tags !== "" && (
+                    <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 col-span-2">
+                      <p className="text-[10px] text-muted-foreground">Tags</p>
+                      <p className="text-sm font-medium mt-0.5">{contact.tags}</p>
+                    </div>
+                  )}
+                  {contact.lastMessage && (
+                    <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 col-span-2">
+                      <p className="text-[10px] text-muted-foreground">Última mensagem · {contact.lastMessage.fromMe ? "Você" : "Contato"} · {timeAgo(contact.lastMessage.messageTimestamp * 1000)}</p>
+                      <p className="text-sm mt-0.5 line-clamp-2">{contact.lastMessage.text}</p>
+                    </div>
+                  )}
+                  {contact.notes && (
+                    <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 col-span-2">
+                      <p className="text-[10px] text-muted-foreground">Notas</p>
+                      <p className="text-sm mt-0.5 text-muted-foreground italic">{contact.notes}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 bg-muted/20 border border-border/40 rounded-lg px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground italic">Ainda não está no CRM.</p>
+                </div>
+              )}
+            </div>
+
           </div>
+        </div>
+
+        {/* Footer — ações */}
+        <div className="flex-shrink-0 flex gap-2 p-4 border-t border-border/60 bg-card">
+          {waUrl && (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-medium transition-colors"
+            >
+              <MessageCircle className="h-4 w-4" /> WhatsApp
+            </a>
+          )}
+          {contact && (
+            <a
+              href={`/?chat=${contact.number}`}
+              className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" /> Abrir no CRM
+            </a>
+          )}
+          {hasAd && adUrls[0] && (
+            <a
+              href={adUrls[0][1]}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" /> Ver anúncio
+            </a>
+          )}
         </div>
       </div>
     </div>
