@@ -201,11 +201,12 @@ export function ProxyDialog({ instanceName, open, onClose, onSaved }: Props) {
                 )}
                 {interpreting ? "Interpretando..." : "Interpretar com IA"}
               </Button>
-              {!GEMINI_KEY && (
+              {!import.meta.env.VITE_GEMINI_API_KEY && (
                 <p className="text-xs text-destructive">
                   ⚠ VITE_GEMINI_API_KEY não configurada — interpretação por IA indisponível.
                 </p>
               )}
+
             </div>
 
             {/* ── Formulário ── */}

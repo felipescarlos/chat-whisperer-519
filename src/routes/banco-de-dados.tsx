@@ -1605,7 +1605,7 @@ function BancoDeDadosPage() {
                         const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
                         const initials = prospect.name.slice(0, 2).toUpperCase();
                         const stage = prospect.crmContact?.stage;
-                        const stageColor = stage?.color || null;
+                        const stageColor = stage?.color || undefined;
                         const lastContactAt = prospect.crmContact?.lastContactAt;
                         const botEnabled = prospect.crmContact?.botEnabled;
                         const hasCrm = !!prospect.crmContact;
