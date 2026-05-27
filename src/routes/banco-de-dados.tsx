@@ -171,8 +171,8 @@ function ContactPopup({
   const initials = prospect.name.slice(0, 2).toUpperCase();
   const contact = crmInfo?.contact;
   const stageColor = contact?.stage?.color;
-  const hasAd = Object.values(prospect.sourceUrls || {}).some(u => !!u);
   const adUrls = Object.entries(prospect.sourceUrls || {}).filter(([, u]) => !!u);
+  const hasAd = prospect.adStatus === 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -301,7 +301,7 @@ function ContactPopup({
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Anúncios</p>
                 <AdStatusBadge status={prospect.adStatus} />
               </div>
-              {hasAd ? (
+              {adUrls.length > 0 ? (
                 <div className="space-y-1.5">
                   {adUrls.map(([source, url]) => (
                     <a
@@ -310,21 +310,22 @@ function ContactPopup({
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2 hover:bg-emerald-500/10 transition-colors group"
+                      className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors group border ${hasAd ? "bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10" : "bg-muted/30 border-border/60 hover:bg-muted/50"}`}
                     >
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${hasAd ? "bg-emerald-400" : "bg-muted-foreground/40"}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-emerald-400 font-medium uppercase">{SOURCES_LABELS[source] || source}</p>
+                        <p className={`text-[10px] font-medium uppercase ${hasAd ? "text-emerald-400" : "text-muted-foreground"}`}>{SOURCES_LABELS[source] || source}</p>
                         <p className="text-xs text-muted-foreground truncate">{url}</p>
+                        {!hasAd && <p className="text-[10px] text-amber-400 mt-0.5">Link gerado mas anúncio não está ativo</p>}
                       </div>
-                      <ExternalLink className="h-3 w-3 text-muted-foreground/40 group-hover:text-emerald-400 transition-colors flex-shrink-0" />
+                      <ExternalLink className={`h-3 w-3 flex-shrink-0 transition-colors ${hasAd ? "text-muted-foreground/40 group-hover:text-emerald-400" : "text-muted-foreground/30"}`} />
                     </a>
                   ))}
                 </div>
               ) : (
                 <div className="flex items-center gap-2 bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                  <p className="text-xs text-amber-400">Sem anúncio publicado</p>
+                  <p className="text-xs text-amber-400">Sem anúncio criado</p>
                 </div>
               )}
             </div>
