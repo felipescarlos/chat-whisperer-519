@@ -6,7 +6,7 @@ import {
   Database, Wifi, Building2, Globe, ArrowLeft, Home, FileSpreadsheet,
   RefreshCw, MessageCircle, MapPin, Square, Trash2, CheckSquare,
   FolderInput, AlertTriangle, X, LayoutList, LayoutGrid, Upload,
-  FolderPlus, Bot, Tag, Calendar, ExternalLink, UserCircle2, Phone,
+  FolderPlus, Bot, Tag, Calendar, ExternalLink, Phone,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -488,7 +488,7 @@ const LIMIT = 2000;
 
 function BancoDeDadosPage() {
   // Active tab
-  const [activeTab, setActiveTab] = useState<"scraper" | "cadastros" | "conversoes">("scraper");
+  const [activeTab, setActiveTab] = useState<"scraper" | "cadastros">("scraper");
 
   // Navigation Path: "" (Root/States) -> "STATE_CODE" (Cities) -> "STATE_CODE/CITY" (Leads)
   const [filterState, setFilterState] = useState("");
@@ -496,8 +496,13 @@ function BancoDeDadosPage() {
 
   // Data
   const [stats, setStats] = useState<ProspectStats | null>(null);
-  const [scraperStatsForConversao, setScraperStatsForConversao] = useState<ProspectStats | null>(null);
-  const [siteStatsForConversao, setSiteStatsForConversao] = useState<ProspectStats | null>(null);
+
+  // Cadastros flat list state
+  const [cadastrosItems, setCadastrosItems] = useState<Prospect[]>([]);
+  const [cadastrosTotal, setCadastrosTotal] = useState(0);
+  const [cadastrosPage, setCadastrosPage] = useState(1);
+  const [cadastrosLoading, setCadastrosLoading] = useState(false);
+  const [cadastrosSearch, setCadastrosSearch] = useState("");
   const [items, setItems] = useState<Prospect[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -537,22 +542,33 @@ function BancoDeDadosPage() {
   // Load stats
   const loadStats = useCallback(async () => {
     try {
-      if (activeTab === "conversoes") {
-        const [scraper, site] = await Promise.all([
-          fetchProspectStats("scraper"),
-          fetchProspectStats("cadastros"),
-        ]);
-        setScraperStatsForConversao(scraper);
-        setSiteStatsForConversao(site);
-      } else {
-        const res = await fetchProspectStats(activeTab);
-        setStats(res);
-      }
+      const res = await fetchProspectStats(activeTab);
+      setStats(res);
     } catch (err) {
       console.error(err);
       toast.error("Falha ao carregar estatísticas do banco");
     }
   }, [activeTab]);
+
+  // Load cadastros flat list
+  const loadCadastros = useCallback(async (page = 1, search = "") => {
+    setCadastrosLoading(true);
+    try {
+      const data = await fetchProspects({ source: "picjob_site", search, page, limit: LIMIT });
+      if (page === 1) {
+        setCadastrosItems(data.items || []);
+      } else {
+        setCadastrosItems((prev) => [...prev, ...(data.items || [])]);
+      }
+      setCadastrosTotal(data.total || 0);
+      setCadastrosPage(page);
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao carregar cadastros");
+    } finally {
+      setCadastrosLoading(false);
+    }
+  }, []);
 
   // Load prospects for a city
   const loadProspects = useCallback(async () => {
@@ -581,6 +597,13 @@ function BancoDeDadosPage() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  useEffect(() => {
+    if (activeTab === "cadastros") {
+      setCadastrosSearch("");
+      loadCadastros(1, "");
+    }
+  }, [activeTab, loadCadastros]);
 
   useEffect(() => {
     if (filterState && filterCity) {
@@ -882,7 +905,7 @@ function BancoDeDadosPage() {
   );
 
   // Reset navigation on tab change
-  const handleTabChange = (tab: "scraper" | "cadastros" | "conversoes") => {
+  const handleTabChange = (tab: "scraper" | "cadastros") => {
     setActiveTab(tab);
     setFilterState("");
     setFilterCity("");
@@ -894,7 +917,6 @@ function BancoDeDadosPage() {
   // Client-side sort + tab filter
   const sortedItems = [...items].filter((p) => {
     if (activeTab === "scraper") return !p.sources.includes("picjob_site");
-    if (activeTab === "cadastros") return p.sources.includes("picjob_site");
     return true;
   }).sort((a, b) => {
     let cmp = 0;
@@ -928,9 +950,8 @@ function BancoDeDadosPage() {
           {/* Tabs */}
           <div className="flex gap-1 bg-muted/40 border border-border rounded-xl p-1">
             {([
-              { id: "scraper",    label: "Scraper",    desc: "Leads raspados" },
-              { id: "cadastros",  label: "Cadastros",  desc: "Site PicJob" },
-              { id: "conversoes", label: "Conversões", desc: "Cruzamento" },
+              { id: "scraper",   label: "Scraper",    desc: "Leads raspados" },
+              { id: "cadastros", label: "Cadastros",  desc: "Site PicJob" },
             ] as const).map((tab) => (
               <button
                 key={tab.id}
@@ -939,9 +960,7 @@ function BancoDeDadosPage() {
                   activeTab === tab.id
                     ? tab.id === "scraper"
                       ? "bg-card border border-border shadow-sm text-foreground"
-                      : tab.id === "cadastros"
-                      ? "bg-blue-500/10 border border-blue-500/30 text-blue-300"
-                      : "bg-emerald-500/10 border border-emerald-500/30 text-emerald-300"
+                      : "bg-blue-500/10 border border-blue-500/30 text-blue-300"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -952,20 +971,14 @@ function BancoDeDadosPage() {
           </div>
 
           {/* Stats Cards Banner */}
-          {stats && !filterState && activeTab !== "conversoes" && (
+          {stats && activeTab === "scraper" && !filterState && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {(activeTab === "scraper" ? [
+              {[
                 { label: "Total Scraper", value: (stats.bySource.fatalmodel || 0) + (stats.bySource.fotoacomp || 0) + (stats.bySource.skokka || 0), icon: Database, color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
                 { label: "Com WhatsApp", value: stats.withPhone, icon: Wifi, color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
                 { label: "Fatal Model", value: stats.bySource.fatalmodel || 0, icon: Globe, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
                 { label: "Skokka", value: stats.bySource.skokka || 0, icon: Globe, color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
-              ] : [
-                { label: "Total Cadastros", value: stats.bySource.picjob_site || 0, icon: Database, color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-                { label: "Com WhatsApp", value: stats.withPhone, icon: Wifi, color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-                { label: "Fatal Model", value: stats.bySource.fatalmodel || 0, icon: Globe, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
-                { label: "PhotoAcomp", value: stats.bySource.fotoacomp || 0, icon: Globe, color: "text-violet-400 bg-violet-500/10 border-violet-500/20" },
-              ]).map((s) => (
-
+              ].map((s) => (
                 <div key={s.label} className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">{s.label}</span>
@@ -979,44 +992,8 @@ function BancoDeDadosPage() {
             </div>
           )}
 
-          {/* Conversões Tab Content */}
-          {activeTab === "conversoes" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-card border border-border rounded-xl p-5 space-y-1">
-                  <span className="text-xs text-muted-foreground">Leads raspados</span>
-                  <p className="text-3xl font-bold text-violet-400">
-                    {((scraperStatsForConversao?.bySource.fatalmodel || 0) + (scraperStatsForConversao?.bySource.fotoacomp || 0) + (scraperStatsForConversao?.bySource.skokka || 0)).toLocaleString("pt-BR")}
-                  </p>
-                  <span className="text-xs text-muted-foreground">FatalModel + PhotoAcomp + Skokka</span>
-                </div>
-                <div className="bg-card border border-border rounded-xl p-5 space-y-1">
-                  <span className="text-xs text-muted-foreground">Cadastros no site</span>
-                  <p className="text-3xl font-bold text-blue-400">
-                    {(siteStatsForConversao?.bySource.picjob_site || 0).toLocaleString("pt-BR")}
-                  </p>
-                  <span className="text-xs text-muted-foreground">Usuários registrados no PicJob</span>
-                </div>
-                <div className="bg-card border border-border rounded-xl p-5 space-y-1">
-                  <span className="text-xs text-muted-foreground">Taxa de conversão estimada</span>
-                  <p className="text-3xl font-bold text-emerald-400">
-                    {scraperStatsForConversao && ((scraperStatsForConversao.bySource.fatalmodel || 0) + (scraperStatsForConversao.bySource.fotoacomp || 0) + (scraperStatsForConversao.bySource.skokka || 0)) > 0
-                      ? (((siteStatsForConversao?.bySource.picjob_site || 0) / ((scraperStatsForConversao.bySource.fatalmodel || 0) + (scraperStatsForConversao.bySource.fotoacomp || 0) + (scraperStatsForConversao.bySource.skokka || 0))) * 100).toFixed(1) + "%"
-                      : "–"}
-                  </p>
-                  <span className="text-xs text-muted-foreground">Cadastros / leads raspados</span>
-                </div>
-              </div>
-              <div className="bg-card border border-border/60 border-dashed rounded-xl p-8 text-center space-y-2">
-                <UserCircle2 className="h-10 w-10 text-muted-foreground/30 mx-auto" />
-                <p className="text-sm font-medium text-muted-foreground">Cruzamento individual em breve</p>
-                <p className="text-xs text-muted-foreground/60">Vai mostrar quais números do scraper se cadastraram no PicJob, com data e funil completo.</p>
-              </div>
-            </div>
-          )}
-
-          {/* Breadcrumbs Navigation */}
-          {activeTab !== "conversoes" && <div className="bg-card/30 backdrop-blur-md border border-border/50 rounded-xl p-3 flex items-center gap-2 text-sm">
+          {/* Breadcrumbs Navigation — Scraper only */}
+          {activeTab === "scraper" && <div className="bg-card/30 backdrop-blur-md border border-border/50 rounded-xl p-3 flex items-center gap-2 text-sm">
             <button
               onClick={() => {
                 setFilterState("");
@@ -1048,8 +1025,8 @@ function BancoDeDadosPage() {
             )}
           </div>}
 
-          {/* Root Level: Show States Folders */}
-          {activeTab !== "conversoes" && !filterState && (
+          {/* Root Level: Show States Folders — Scraper only */}
+          {activeTab === "scraper" && !filterState && (
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Pastas de Estados
@@ -1091,7 +1068,7 @@ function BancoDeDadosPage() {
           )}
 
           {/* Level 2: Show Cities Folders inside State */}
-          {activeTab !== "conversoes" && filterState && !filterCity && (
+          {activeTab === "scraper" && filterState && !filterCity && (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <Button
@@ -1193,9 +1170,145 @@ function BancoDeDadosPage() {
             </div>
           )}
 
-          {/* Level 3: Show Prospects list/grid inside City */}
-          {/* (activeTab guard handled by breadcrumb/folder guards above) */}
-          {filterState && filterCity && (
+          {/* Cadastros flat list */}
+          {activeTab === "cadastros" && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {cadastrosTotal > 0 ? `${cadastrosTotal.toLocaleString("pt-BR")} cadastros encontrados` : "Carregando…"}
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-1.5 text-sm font-semibold text-blue-300">
+                    {(stats?.bySource.picjob_site || 0).toLocaleString("pt-BR")} total · {(stats?.withPhone || 0).toLocaleString("pt-BR")} com WhatsApp
+                  </div>
+                </div>
+              </div>
+
+              <form
+                onSubmit={(e) => { e.preventDefault(); loadCadastros(1, cadastrosSearch); }}
+                className="flex gap-2"
+              >
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar por nome ou telefone…"
+                    value={cadastrosSearch}
+                    onChange={(e) => setCadastrosSearch(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <Button type="submit" size="sm" className="h-9">Buscar</Button>
+                {cadastrosSearch && (
+                  <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => { setCadastrosSearch(""); loadCadastros(1, ""); }}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </form>
+
+              {cadastrosLoading && cadastrosItems.length === 0 ? (
+                <div className="space-y-2 py-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="h-12 bg-card/50 border border-border animate-pulse rounded-lg" />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
+                        <th className="text-left px-3 py-2.5 font-medium w-8" />
+                        <th className="text-left px-3 py-2.5 font-medium">Nome</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Telefone</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Estado</th>
+                        <th className="text-left px-3 py-2.5 font-medium hidden lg:table-cell">Cadastrado em</th>
+                        <th className="w-9 px-3 py-2.5" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cadastrosItems.map((prospect) => {
+                        const phone = prospect.whatsappE164 || prospect.whatsappDisplay;
+                        const initials = prospect.name.slice(0, 2).toUpperCase();
+                        return (
+                          <tr
+                            key={prospect.id}
+                            onClick={() => setPopupProspect(prospect)}
+                            className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/30 transition-colors"
+                          >
+                            <td className="px-3 py-2">
+                              {prospect.thumbUrl ? (
+                                <img src={prospect.thumbUrl} alt="" className="w-7 h-7 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                              ) : (
+                                <div className="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center text-[10px] font-bold text-blue-300">{initials}</div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="font-medium truncate block max-w-[180px]">{prospect.name}</span>
+                              {prospect.crmContact?.stage && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: prospect.crmContact.stage.color + "33", color: prospect.crmContact.stage.color }}>
+                                  {prospect.crmContact.stage.name}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 hidden sm:table-cell">
+                              {phone ? (
+                                <span className="text-xs text-emerald-400 font-mono">{phone}</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/40 italic">–</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 hidden md:table-cell">
+                              {prospect.state ? (
+                                <span className="text-xs font-mono bg-muted/60 border border-border px-2 py-0.5 rounded-full">{prospect.state}</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/40 italic">–</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 hidden lg:table-cell text-xs text-muted-foreground">
+                              {new Date(prospect.firstSeenAt).toLocaleDateString("pt-BR")}
+                            </td>
+                            <td className="px-3 py-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setPopupProspect(prospect); }}
+                                className="text-muted-foreground/40 hover:text-foreground transition-colors"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {cadastrosItems.length === 0 && !cadastrosLoading && (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-12 text-center text-muted-foreground">
+                            Nenhum cadastro encontrado.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {cadastrosItems.length < cadastrosTotal && (
+                <div className="flex justify-center pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadCadastros(cadastrosPage + 1, cadastrosSearch)}
+                    disabled={cadastrosLoading}
+                    className="gap-2"
+                  >
+                    {cadastrosLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}
+                    Carregar mais ({cadastrosTotal - cadastrosItems.length} restantes)
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Level 3: Show Prospects list/grid inside City — Scraper only */}
+          {activeTab === "scraper" && filterState && filterCity && (
             <div className="space-y-4">
               {/* Search & Export Toolbar */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
