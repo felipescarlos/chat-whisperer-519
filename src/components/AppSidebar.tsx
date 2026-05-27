@@ -1,7 +1,9 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { MessageCircle, Smartphone, Send, History, Settings, LogOut, LayoutDashboard, Trello, Radio, Database } from "lucide-react";
+import { MessageCircle, Smartphone, Send, History, Settings, LogOut, LayoutDashboard, Trello, Radio, Database, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth";
+import { useTheme } from "@/hooks/use-theme";
+
 
 const items = [
   { to: "/", label: "Conversas", icon: MessageCircle },
@@ -18,6 +20,8 @@ const items = [
 
 export function AppSidebar() {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const { theme, toggle } = useTheme();
+
 
   return (
     <aside className="w-16 md:w-20 bg-sidebar border-r border-border flex flex-col items-center py-4 shrink-0 h-full">
@@ -48,7 +52,16 @@ export function AppSidebar() {
         })}
       </div>
 
-      <div className="mt-auto pt-4 shrink-0 w-full flex justify-center">
+      <div className="mt-auto pt-4 shrink-0 w-full flex flex-col items-center gap-2">
+        <button
+          onClick={toggle}
+          className="w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors text-sidebar-foreground hover:bg-accent/50 hover:text-foreground"
+          title={theme === "dark" ? "Modo claro" : "Modo escuro"}
+          aria-label="Alternar tema"
+        >
+          {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          <span className="text-[9px] font-medium hidden md:block">{theme === "dark" ? "Claro" : "Escuro"}</span>
+        </button>
         <button
           onClick={logout}
           className="w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors text-muted-foreground hover:bg-destructive/10 hover:text-destructive group"
@@ -58,6 +71,7 @@ export function AppSidebar() {
           <span className="text-[9px] font-medium hidden md:block group-hover:text-destructive">Sair</span>
         </button>
       </div>
+
     </aside>
   );
 }
