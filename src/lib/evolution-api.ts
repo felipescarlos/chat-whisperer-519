@@ -633,8 +633,9 @@ export function fetchProspects(params: {
   return scraperRequest<ProspectListResponse>(`/prospects?${qs.toString()}`);
 }
 
-export function fetchProspectStats() {
-  return scraperRequest<ProspectStats>("/prospects/stats");
+export function fetchProspectStats(tab?: string) {
+  const qs = tab ? `?tab=${tab}` : "";
+  return scraperRequest<ProspectStats>(`/prospects/stats${qs}`);
 }
 
 export function triggerScrape(states: string[], cities: string[] = [], sources?: string[]) {

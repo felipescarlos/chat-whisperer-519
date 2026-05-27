@@ -496,6 +496,8 @@ function BancoDeDadosPage() {
 
   // Data
   const [stats, setStats] = useState<ProspectStats | null>(null);
+  const [scraperStatsForConversao, setScraperStatsForConversao] = useState<ProspectStats | null>(null);
+  const [siteStatsForConversao, setSiteStatsForConversao] = useState<ProspectStats | null>(null);
   const [items, setItems] = useState<Prospect[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -535,13 +537,22 @@ function BancoDeDadosPage() {
   // Load stats
   const loadStats = useCallback(async () => {
     try {
-      const res = await fetchProspectStats();
-      setStats(res);
+      if (activeTab === "conversoes") {
+        const [scraper, site] = await Promise.all([
+          fetchProspectStats("scraper"),
+          fetchProspectStats("cadastros"),
+        ]);
+        setScraperStatsForConversao(scraper);
+        setSiteStatsForConversao(site);
+      } else {
+        const res = await fetchProspectStats(activeTab);
+        setStats(res);
+      }
     } catch (err) {
       console.error(err);
       toast.error("Falha ao carregar estatísticas do banco");
     }
-  }, []);
+  }, [activeTab]);
 
   // Load prospects for a city
   const loadProspects = useCallback(async () => {
@@ -975,22 +986,22 @@ function BancoDeDadosPage() {
                 <div className="bg-card border border-border rounded-xl p-5 space-y-1">
                   <span className="text-xs text-muted-foreground">Leads raspados</span>
                   <p className="text-3xl font-bold text-violet-400">
-                    {((stats?.bySource.fatalmodel || 0) + (stats?.bySource.fotoacomp || 0) + (stats?.bySource.skokka || 0)).toLocaleString("pt-BR")}
+                    {((scraperStatsForConversao?.bySource.fatalmodel || 0) + (scraperStatsForConversao?.bySource.fotoacomp || 0) + (scraperStatsForConversao?.bySource.skokka || 0)).toLocaleString("pt-BR")}
                   </p>
                   <span className="text-xs text-muted-foreground">FatalModel + PhotoAcomp + Skokka</span>
                 </div>
                 <div className="bg-card border border-border rounded-xl p-5 space-y-1">
                   <span className="text-xs text-muted-foreground">Cadastros no site</span>
                   <p className="text-3xl font-bold text-blue-400">
-                    {(stats?.bySource.picjob_site || 0).toLocaleString("pt-BR")}
+                    {(siteStatsForConversao?.bySource.picjob_site || 0).toLocaleString("pt-BR")}
                   </p>
                   <span className="text-xs text-muted-foreground">Usuários registrados no PicJob</span>
                 </div>
                 <div className="bg-card border border-border rounded-xl p-5 space-y-1">
                   <span className="text-xs text-muted-foreground">Taxa de conversão estimada</span>
                   <p className="text-3xl font-bold text-emerald-400">
-                    {stats && (stats.bySource.fatalmodel + stats.bySource.fotoacomp + stats.bySource.skokka) > 0
-                      ? (((stats.bySource.picjob_site || 0) / (stats.bySource.fatalmodel + stats.bySource.fotoacomp + stats.bySource.skokka)) * 100).toFixed(1) + "%"
+                    {scraperStatsForConversao && ((scraperStatsForConversao.bySource.fatalmodel || 0) + (scraperStatsForConversao.bySource.fotoacomp || 0) + (scraperStatsForConversao.bySource.skokka || 0)) > 0
+                      ? (((siteStatsForConversao?.bySource.picjob_site || 0) / ((scraperStatsForConversao.bySource.fatalmodel || 0) + (scraperStatsForConversao.bySource.fotoacomp || 0) + (scraperStatsForConversao.bySource.skokka || 0))) * 100).toFixed(1) + "%"
                       : "–"}
                   </p>
                   <span className="text-xs text-muted-foreground">Cadastros / leads raspados</span>
