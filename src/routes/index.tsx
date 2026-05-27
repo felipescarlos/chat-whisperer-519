@@ -68,7 +68,7 @@ function formatTime(ts?: number) {
 
 function getChatRemoteJidAlt(c: Chat): string | null {
   if ((c as any).remoteJidAlt) return (c as any).remoteJidAlt as string;
-  if (c.lastMessage?.key?.remoteJidAlt) return c.lastMessage.key.remoteJidAlt;
+  if ((c.lastMessage?.key as any)?.remoteJidAlt) return (c.lastMessage!.key as any).remoteJidAlt as string;
   return null;
 }
 
