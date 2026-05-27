@@ -174,10 +174,10 @@ function ConversasPage() {
     return list.sort((a, b) => {
       const tsA = a.lastMessage?.messageTimestamp
         ? Number(a.lastMessage.messageTimestamp) * 1000
-        : new Date(a.updatedAt).getTime();
+        : new Date(a.updatedAt || 0).getTime();
       const tsB = b.lastMessage?.messageTimestamp
         ? Number(b.lastMessage.messageTimestamp) * 1000
-        : new Date(b.updatedAt).getTime();
+        : new Date(b.updatedAt || 0).getTime();
       return tsB - tsA;
     });
   }, [contacts, filterInstance]);
