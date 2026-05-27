@@ -706,6 +706,7 @@ export function moveProspects(data: {
 export interface ProspectCrmInfo {
   contact: {
     id: string;
+    number: string;
     name: string | null;
     botEnabled: boolean;
     notes: string | null;

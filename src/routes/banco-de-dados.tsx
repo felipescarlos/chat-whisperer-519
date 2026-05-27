@@ -262,7 +262,7 @@ function ContactPopup({
             )}
             {contact && (
               <a
-                href="/crm"
+                href={`/?chat=${contact.number}`}
                 className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors"
               >
                 <ExternalLink className="h-4 w-4" /> Abrir no CRM
