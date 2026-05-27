@@ -524,6 +524,7 @@ function BancoDeDadosPage() {
   const [cadFilterStages, setCadFilterStages] = useState<string[]>([]);
   const [cadFilterHasPhone, setCadFilterHasPhone] = useState(false);
   const [cadFilterHasCrm, setCadFilterHasCrm] = useState(false);
+  const [cadFilterHasAd, setCadFilterHasAd] = useState<"yes" | "no" | null>(null);
   const cadLastStateIdx = useRef(-1);
   const cadLastStageIdx = useRef(-1);
   const [items, setItems] = useState<Prospect[]>([]);
@@ -951,9 +952,11 @@ function BancoDeDadosPage() {
     if (cadFilterStages.length > 0 && !cadFilterStages.includes(p.crmContact?.stage?.name || "")) return false;
     if (cadFilterHasPhone && !p.whatsappE164) return false;
     if (cadFilterHasCrm && !p.crmContact) return false;
+    if (cadFilterHasAd === "yes" && !p.state) return false;
+    if (cadFilterHasAd === "no" && !!p.state) return false;
     return true;
-  }), [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm]);
-  const cadActiveFilterCount = cadFilterStates.length + cadFilterStages.length + (cadFilterHasPhone ? 1 : 0) + (cadFilterHasCrm ? 1 : 0);
+  }), [cadastrosItems, cadFilterStates, cadFilterStages, cadFilterHasPhone, cadFilterHasCrm, cadFilterHasAd]);
+  const cadActiveFilterCount = cadFilterStates.length + cadFilterStages.length + (cadFilterHasPhone ? 1 : 0) + (cadFilterHasCrm ? 1 : 0) + (cadFilterHasAd ? 1 : 0);
 
   const toggleMultiFilter = (
     value: string,
@@ -1291,7 +1294,7 @@ function BancoDeDadosPage() {
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filtros ativos</span>
                     {cadActiveFilterCount > 0 && (
                       <button
-                        onClick={() => { setCadFilterStates([]); setCadFilterStages([]); setCadFilterHasPhone(false); setCadFilterHasCrm(false); cadLastStateIdx.current = -1; cadLastStageIdx.current = -1; }}
+                        onClick={() => { setCadFilterStates([]); setCadFilterStages([]); setCadFilterHasPhone(false); setCadFilterHasCrm(false); setCadFilterHasAd(null); cadLastStateIdx.current = -1; cadLastStageIdx.current = -1; }}
                         className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
                       >
                         <X className="h-3 w-3" /> Limpar todos
@@ -1312,6 +1315,18 @@ function BancoDeDadosPage() {
                       className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterHasCrm ? "bg-violet-500/15 border-violet-500/50 text-violet-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
                     >
                       No CRM
+                    </button>
+                    <button
+                      onClick={() => setCadFilterHasAd(v => v === "yes" ? null : "yes")}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterHasAd === "yes" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
+                    >
+                      Com anúncio ativo
+                    </button>
+                    <button
+                      onClick={() => setCadFilterHasAd(v => v === "no" ? null : "no")}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${cadFilterHasAd === "no" ? "bg-amber-500/15 border-amber-500/50 text-amber-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
+                    >
+                      Sem anúncio
                     </button>
                   </div>
 
@@ -1475,7 +1490,15 @@ function BancoDeDadosPage() {
 
                             {/* Anúncios ativos */}
                             <td className="px-3 py-2.5 hidden lg:table-cell text-center">
-                              <span className="text-xs text-muted-foreground/40" title="Sincronização com MySQL pendente">–</span>
+                              {prospect.state ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                                  Ativo
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                                  Sem anúncio
+                                </span>
+                              )}
                             </td>
 
                             {/* Bot */}
