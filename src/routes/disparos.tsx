@@ -561,10 +561,14 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
         : "Manual";
 
       let finalAudience = audience;
-      if (removeCadastros && cadastrosResult && cadastrosResult.found.length > 0) {
-        const foundSet = new Set(cadastrosResult.found.map((f) => f.number));
-        finalAudience = audience.filter((a) => !foundSet.has(a.number));
-        toast.info(`${cadastrosResult.found.length} cadastrado(s) removido(s) da lista`);
+      if (removeCadastros && cadastrosResult && (cadastrosResult.registered.length > 0 || cadastrosResult.withHistory.length > 0)) {
+        const knownSet = new Set([
+          ...cadastrosResult.registered.map((r) => r.number),
+          ...cadastrosResult.withHistory.map((c) => c.number),
+        ]);
+        const removed = audience.filter((a) => knownSet.has(a.number)).length;
+        finalAudience = audience.filter((a) => !knownSet.has(a.number));
+        toast.info(`${removed} contato(s) conhecidos removidos da lista`);
       }
 
       await createVPSCampaign({
@@ -973,31 +977,72 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
 
                 {checkCadastrosEnabled && cadastrosResult && (
                   <div className="px-4 py-3 space-y-3 text-sm">
-                    <div className="flex gap-4">
+                    {/* Summary counts */}
+                    <div className="flex gap-4 flex-wrap">
                       <span className="text-muted-foreground">Total: <strong>{cadastrosResult.total}</strong></span>
-                      <span className="text-blue-400">Cadastrados: <strong>{cadastrosResult.found.length}</strong></span>
+                      {cadastrosResult.registered.length > 0 && (
+                        <span className="text-blue-400">Cadastrados no site: <strong>{cadastrosResult.registered.length}</strong></span>
+                      )}
+                      {cadastrosResult.withHistory.length > 0 && (
+                        <span className="text-yellow-400">Com histórico CRM: <strong>{cadastrosResult.withHistory.length}</strong></span>
+                      )}
                       <span className="text-emerald-400">Novos: <strong>{cadastrosResult.clean.length}</strong></span>
                     </div>
 
-                    {cadastrosResult.gptAnalysis && (
-                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
-                          <Sparkles className="h-3 w-3" /> Parecer da IA
+                    {/* Registered list */}
+                    {cadastrosResult.registered.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-blue-400">Cadastrados no site PicJob</p>
+                        <div className="max-h-28 overflow-y-auto space-y-1">
+                          {cadastrosResult.registered.map((r) => (
+                            <div key={r.number} className="flex items-center justify-between text-xs bg-blue-500/10 rounded px-2 py-1">
+                              <span className="font-mono text-muted-foreground">{r.number}</span>
+                              <span className="truncate max-w-[120px] mx-2">{r.name || "—"}</span>
+                              {r.adStatusLabel && (
+                                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                  r.adStatus === 1 ? "bg-emerald-500/20 text-emerald-400"
+                                  : r.adStatus === 3 ? "bg-red-500/20 text-red-400"
+                                  : "bg-muted text-muted-foreground"
+                                }`}>{r.adStatusLabel}</span>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                        <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
-                          {cadastrosResult.gptAnalysis}
-                        </p>
                       </div>
                     )}
 
-                    {cadastrosResult.found.length > 0 && (
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                    {/* CRM history list */}
+                    {cadastrosResult.withHistory.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-yellow-400">Com histórico no CRM</p>
+                        <div className="max-h-28 overflow-y-auto space-y-1">
+                          {cadastrosResult.withHistory.map((c) => (
+                            <div key={c.number} className="flex items-center justify-between text-xs bg-yellow-500/10 rounded px-2 py-1">
+                              <span className="font-mono text-muted-foreground">{c.number}</span>
+                              <span className="truncate max-w-[120px] mx-2">{c.name || "—"}</span>
+                              {c.stageName && (
+                                <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] bg-muted text-muted-foreground">{c.stageName}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {cadastrosResult.registered.length === 0 && cadastrosResult.withHistory.length === 0 && (
+                      <p className="text-xs text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Nenhum contato conhecido encontrado
+                      </p>
+                    )}
+
+                    {(cadastrosResult.registered.length > 0 || cadastrosResult.withHistory.length > 0) && (
+                      <label className="flex items-center gap-2 cursor-pointer select-none pt-1 border-t border-border">
                         <Checkbox
                           checked={removeCadastros}
                           onCheckedChange={(v) => setRemoveCadastros(!!v)}
                         />
                         <span className="text-xs">
-                          Remover {cadastrosResult.found.length} cadastrado(s) da lista antes de disparar
+                          Remover {cadastrosResult.registered.length + cadastrosResult.withHistory.length} contato(s) conhecidos da lista antes de disparar
                         </span>
                       </label>
                     )}

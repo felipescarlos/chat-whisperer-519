@@ -121,10 +121,10 @@ export async function checkCampaignDuplicates(numbers: string[]): Promise<Duplic
 }
 
 export interface CadastrosCheckResult {
-  found: { number: string; name: string; adStatus: number | null; deletedAt: string | null }[];
+  registered: { number: string; name: string; adStatus: number | null; adStatusLabel: string | null; deletedAt: string | null }[];
+  withHistory: { number: string; name: string; stageName: string | null }[];
   clean: string[];
   total: number;
-  gptAnalysis: string;
 }
 
 export async function checkCadastros(numbers: string[]): Promise<CadastrosCheckResult> {
