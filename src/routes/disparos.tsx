@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import {
   Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle, ChevronDown,
   ChevronUp, Clock, RefreshCw, Trash2, Plus, Users, Database, FileSpreadsheet,
-  Pencil, Target, AlertTriangle, Info, ChevronRight, Loader2, X,
+  Pencil, Target, AlertTriangle, Info, ChevronRight, Loader2, X, Sparkles,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,9 @@ import { expandVariations } from "@/lib/broadcast-utils";
 import { getChipDisplayName, loadAllLabels } from "@/lib/chip-labels";
 import {
   createVPSCampaign, updateVPSCampaignStatus, retryVPSCampaignErrors,
-  deleteVPSCampaign, fetchCampaignAudience, checkCampaignDuplicates,
+  deleteVPSCampaign, fetchCampaignAudience, checkCampaignDuplicates, checkCadastros,
   translateEvolutionError, VPSCampaign, BroadcastStatus, CampaignAudienceItem,
-  DuplicateCheckResult,
+  DuplicateCheckResult, CadastrosCheckResult,
 } from "@/lib/vps-queue";
 import { useBroadcastQueue } from "@/lib/useBroadcastQueue";
 import { ConversaDialog } from "@/components/ConversaDialog";
@@ -444,6 +444,10 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
   // Step 4: Revisão
   const [dupResult, setDupResult] = useState<DuplicateCheckResult | null>(null);
   const [checkingDups, setCheckingDups] = useState(false);
+  const [checkCadastrosEnabled, setCheckCadastrosEnabled] = useState(false);
+  const [cadastrosResult, setCadastrosResult] = useState<CadastrosCheckResult | null>(null);
+  const [checkingCadastros, setCheckingCadastros] = useState(false);
+  const [removeCadastros, setRemoveCadastros] = useState(false);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -529,6 +533,19 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
     }
   };
 
+  const handleCheckCadastros = async () => {
+    setCheckingCadastros(true);
+    try {
+      const numbers = audience.map((a) => a.number);
+      const result = await checkCadastros(numbers);
+      setCadastrosResult(result);
+    } catch {
+      toast.error("Erro ao verificar cadastros");
+    } finally {
+      setCheckingCadastros(false);
+    }
+  };
+
   const handleCreate = async () => {
     const chips = Array.from(selectedChips);
     if (!message.trim()) return toast.error("Escreva a mensagem");
@@ -543,6 +560,13 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
         : source === "planilha" ? "Planilha"
         : "Manual";
 
+      let finalAudience = audience;
+      if (removeCadastros && cadastrosResult && cadastrosResult.found.length > 0) {
+        const foundSet = new Set(cadastrosResult.found.map((f) => f.number));
+        finalAudience = audience.filter((a) => !foundSet.has(a.number));
+        toast.info(`${cadastrosResult.found.length} cadastrado(s) removido(s) da lista`);
+      }
+
       await createVPSCampaign({
         name: campaignName.trim() || `Campanha ${new Date().toLocaleDateString("pt-BR")}`,
         message,
@@ -551,7 +575,7 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
         per_chip_limit: perChipLimit,
         chips,
         segmentLabel,
-        numbers: audience,
+        numbers: finalAudience,
       });
       toast.success("Campanha criada e iniciada no servidor!");
       onCreated();
@@ -920,6 +944,70 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
                       </p>
                     )}
                   </div>
+                )}
+              </div>
+
+              {/* Cadastros check */}
+              <div className="border border-border rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-muted/30">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
+                    <Checkbox
+                      checked={checkCadastrosEnabled}
+                      onCheckedChange={(v) => {
+                        setCheckCadastrosEnabled(!!v);
+                        if (!v) { setCadastrosResult(null); setRemoveCadastros(false); }
+                      }}
+                    />
+                    <Database className="h-4 w-4 text-blue-400" />
+                    Cruzar com base de cadastros
+                  </label>
+                  {checkCadastrosEnabled && (
+                    <Button variant="outline" size="sm" onClick={handleCheckCadastros} disabled={checkingCadastros}>
+                      {checkingCadastros
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                        : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                      Analisar com IA
+                    </Button>
+                  )}
+                </div>
+
+                {checkCadastrosEnabled && cadastrosResult && (
+                  <div className="px-4 py-3 space-y-3 text-sm">
+                    <div className="flex gap-4">
+                      <span className="text-muted-foreground">Total: <strong>{cadastrosResult.total}</strong></span>
+                      <span className="text-blue-400">Cadastrados: <strong>{cadastrosResult.found.length}</strong></span>
+                      <span className="text-emerald-400">Novos: <strong>{cadastrosResult.clean.length}</strong></span>
+                    </div>
+
+                    {cadastrosResult.gptAnalysis && (
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                          <Sparkles className="h-3 w-3" /> Parecer da IA
+                        </div>
+                        <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                          {cadastrosResult.gptAnalysis}
+                        </p>
+                      </div>
+                    )}
+
+                    {cadastrosResult.found.length > 0 && (
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <Checkbox
+                          checked={removeCadastros}
+                          onCheckedChange={(v) => setRemoveCadastros(!!v)}
+                        />
+                        <span className="text-xs">
+                          Remover {cadastrosResult.found.length} cadastrado(s) da lista antes de disparar
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                {checkCadastrosEnabled && !cadastrosResult && !checkingCadastros && (
+                  <p className="px-4 py-3 text-xs text-muted-foreground">
+                    Clique em "Analisar com IA" para cruzar a lista com os cadastros do site e receber um parecer.
+                  </p>
                 )}
               </div>
             </div>

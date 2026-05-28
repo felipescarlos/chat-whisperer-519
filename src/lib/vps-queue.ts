@@ -120,6 +120,23 @@ export async function checkCampaignDuplicates(numbers: string[]): Promise<Duplic
   return res.json();
 }
 
+export interface CadastrosCheckResult {
+  found: { number: string; name: string; adStatus: number | null; deletedAt: string | null }[];
+  clean: string[];
+  total: number;
+  gptAnalysis: string;
+}
+
+export async function checkCadastros(numbers: string[]): Promise<CadastrosCheckResult> {
+  const res = await fetch(`${CRM_BASE}/ai/check-cadastros`, {
+    method: "POST",
+    headers: crmHeaders(),
+    body: JSON.stringify({ numbers }),
+  });
+  if (!res.ok) throw new Error(`Erro ao verificar cadastros: ${res.statusText}`);
+  return res.json();
+}
+
 // ── Tradução de erros da Evolution API ───────────────────────
 export interface ErrorTranslation {
   title: string;
