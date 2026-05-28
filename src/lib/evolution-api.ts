@@ -565,6 +565,7 @@ export function fetchFunnelStats() {
 
 export interface ProspectCrmContact {
   id: string;
+  instance: string | null;
   botEnabled: boolean;
   stage: { name: string; color: string } | null;
   lastContactAt: number | null;

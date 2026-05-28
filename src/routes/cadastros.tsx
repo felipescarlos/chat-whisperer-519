@@ -58,8 +58,8 @@ function AdStatusBadge({ status }: { status: number | null | undefined }) {
 // Cadastros com firstSeenAt anterior a Mariana Silva Rodrigues são pré-CRM (origem desconhecida)
 const PRE_CRM_CUTOFF = new Date("2026-05-22T11:47:45.000Z");
 
-function OriginBadge({ hasCrm, firstSeenAt }: { hasCrm: boolean; firstSeenAt: string }) {
-  if (hasCrm) {
+function OriginBadge({ crmContact, firstSeenAt }: { crmContact: { instance: string | null } | null; firstSeenAt: string }) {
+  if (crmContact?.instance) {
     return (
       <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap bg-violet-500/15 text-violet-400 border-violet-500/30">
         Via WhatsApp
@@ -213,7 +213,7 @@ function ContactPopup({ prospect, onClose }: { prospect: Prospect; onClose: () =
                         {contact ? "Abordado pelo CRM" : new Date(prospect.firstSeenAt) < PRE_CRM_CUTOFF ? "Cadastrado antes do CRM existir" : "Provavelmente via Google"}
                       </p>
                     </div>
-                    <OriginBadge hasCrm={!!contact} firstSeenAt={prospect.firstSeenAt} />
+                    <OriginBadge crmContact={prospect.crmContact} firstSeenAt={prospect.firstSeenAt} />
                   </div>
                   <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
                     <p className="text-[10px] text-muted-foreground">Cadastrado em</p>
@@ -430,9 +430,11 @@ function CadastrosPage() {
       if (filterHasCrm && !p.crmContact) return false;
       if (filterHasAd === "yes" && p.adStatus !== 1) return false;
       if (filterHasAd === "no" && p.adStatus === 1) return false;
-      if (filterOrigin === "organic" && (p.crmContact || new Date(p.firstSeenAt) < PRE_CRM_CUTOFF)) return false;
-      if (filterOrigin === "whatsapp" && !p.crmContact) return false;
-      if (filterOrigin === "pre-crm" && (p.crmContact || new Date(p.firstSeenAt) >= PRE_CRM_CUTOFF)) return false;
+      const isWhatsApp = !!p.crmContact?.instance;
+      const isPreCrm = !isWhatsApp && new Date(p.firstSeenAt) < PRE_CRM_CUTOFF;
+      if (filterOrigin === "organic" && (isWhatsApp || isPreCrm)) return false;
+      if (filterOrigin === "whatsapp" && !isWhatsApp) return false;
+      if (filterOrigin === "pre-crm" && !isPreCrm) return false;
       return true;
     });
     return [...f].sort((a, b) => {
@@ -639,6 +641,7 @@ function CadastrosPage() {
                     const lastContactAt = prospect.crmContact?.lastContactAt;
                     const botEnabled = prospect.crmContact?.botEnabled;
                     const hasCrm = !!prospect.crmContact;
+                    const isWhatsApp = !!prospect.crmContact?.instance;
 
                     return (
                       <tr
@@ -697,7 +700,7 @@ function CadastrosPage() {
                           ) : <span className="text-xs text-muted-foreground/30">–</span>}
                         </td>
                         <td className="px-3 py-2.5 hidden lg:table-cell">
-                          <OriginBadge hasCrm={hasCrm} firstSeenAt={prospect.firstSeenAt} />
+                          <OriginBadge crmContact={prospect.crmContact} firstSeenAt={prospect.firstSeenAt} />
                         </td>
                         <td className="px-3 py-2.5 hidden lg:table-cell">
                           <AdStatusBadge status={prospect.adStatus} />
