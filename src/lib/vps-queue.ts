@@ -134,7 +134,13 @@ export async function checkCadastros(numbers: string[]): Promise<CadastrosCheckR
     body: JSON.stringify({ numbers }),
   });
   if (!res.ok) throw new Error(`Erro ao verificar cadastros: ${res.statusText}`);
-  return res.json();
+  const data = await res.json();
+  return {
+    registered: Array.isArray(data.registered) ? data.registered : [],
+    withHistory: Array.isArray(data.withHistory) ? data.withHistory : [],
+    clean: Array.isArray(data.clean) ? data.clean : [],
+    total: data.total ?? numbers.length,
+  };
 }
 
 // ── Tradução de erros da Evolution API ───────────────────────
