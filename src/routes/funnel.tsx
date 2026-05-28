@@ -621,9 +621,9 @@ function KanbanColumn({ stageId, title, color, items, stages, draggingContact, d
       onDrop={(e) => { e.preventDefault(); onDrop(stageId); }}
     >
       <div className="p-3 border-b border-border flex items-center justify-between bg-panel-header/80 rounded-t-xl">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
-          <span className="font-semibold text-sm truncate" title={title}>{title}</span>
+        <div className="flex items-start gap-2 min-w-0">
+          <span className="w-3 h-3 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: color }} />
+          <span className="font-semibold text-sm leading-snug break-words">{title}</span>
         </div>
         <Badge className="text-[10px] text-white font-bold shrink-0" style={{ backgroundColor: color }}>
           {items.length}
