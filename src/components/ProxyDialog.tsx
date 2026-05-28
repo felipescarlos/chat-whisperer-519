@@ -45,7 +45,7 @@ async function interpretProxyText(text: string): Promise<Partial<ProxyConfig>> {
     throw new Error(`AI proxy ${res.status}: ${errBody || res.statusText}`);
   }
   const data = await res.json();
-  const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const raw: string = data.choices?.[0]?.message?.content ?? "";
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("Resposta da IA sem JSON válido");
   return JSON.parse(match[0]);
@@ -201,11 +201,7 @@ export function ProxyDialog({ instanceName, open, onClose, onSaved }: Props) {
                 )}
                 {interpreting ? "Interpretando..." : "Interpretar com IA"}
               </Button>
-              {!import.meta.env.VITE_GEMINI_API_KEY && (
-                <p className="text-xs text-destructive">
-                  ⚠ VITE_GEMINI_API_KEY não configurada — interpretação por IA indisponível.
-                </p>
-              )}
+
 
             </div>
 
