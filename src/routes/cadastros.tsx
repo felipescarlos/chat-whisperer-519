@@ -217,12 +217,12 @@ function ContactPopup({ prospect, onClose }: { prospect: Prospect; onClose: () =
                   </div>
                   <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
                     <p className="text-[10px] text-muted-foreground">Cadastrado em</p>
-                    <p className="text-sm font-medium">{new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>
+                    <p className="text-sm font-medium">{new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" })}</p>
                     <p className="text-[10px] text-muted-foreground/60">{timeAgo(new Date(prospect.firstSeenAt).getTime())}</p>
                   </div>
                   <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
                     <p className="text-[10px] text-muted-foreground">Última atualização</p>
-                    <p className="text-sm font-medium">{new Date(prospect.lastSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>
+                    <p className="text-sm font-medium">{new Date(prospect.lastSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" })}</p>
                     <p className="text-[10px] text-muted-foreground/60">{timeAgo(new Date(prospect.lastSeenAt).getTime())}</p>
                   </div>
                 </div>
@@ -707,13 +707,13 @@ function CadastrosPage() {
                         </td>
                         <td className="px-3 py-2.5 hidden xl:table-cell">
                           {lastContactAt ? (
-                            <span className="text-xs text-muted-foreground" title={new Date(lastContactAt * 1000).toLocaleString("pt-BR")}>
+                            <span className="text-xs text-muted-foreground" title={new Date(lastContactAt * 1000).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}>
                               {timeAgo(lastContactAt * 1000)}
                             </span>
                           ) : <span className="text-xs text-muted-foreground/30">–</span>}
                         </td>
                         <td className="px-3 py-2.5 hidden lg:table-cell">
-                          <span className="text-xs text-muted-foreground" title={new Date(prospect.firstSeenAt).toLocaleString("pt-BR")}>
+                          <span className="text-xs text-muted-foreground" title={new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}>
                             {timeAgo(new Date(prospect.firstSeenAt).getTime())}
                           </span>
                         </td>
