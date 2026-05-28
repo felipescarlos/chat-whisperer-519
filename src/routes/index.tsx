@@ -558,6 +558,20 @@ function ConversasPage() {
                 </div>
               </div>
 
+              {/* Email */}
+              {selected?.__crmContact?.email && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">E-mail</label>
+                  <a
+                    href={`mailto:${selected.__crmContact.email}`}
+                    className="flex items-center gap-2 text-xs text-primary hover:underline bg-muted/30 border border-border/60 rounded-md px-3 py-2 break-all"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {selected.__crmContact.email}
+                  </a>
+                </div>
+              )}
+
               {/* Agente IA (Bot Toggle) */}
               <div className="flex items-center justify-between bg-accent/25 p-3 rounded-lg border border-border/40">
                 <div className="space-y-0.5">

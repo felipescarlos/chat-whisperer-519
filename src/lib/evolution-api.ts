@@ -401,6 +401,7 @@ export interface CRMContact {
   number: string;
   name: string | null;
   instance: string | null;
+  email: string | null;
   notes: string | null;
   tags: string;
   botEnabled: boolean;
