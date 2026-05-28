@@ -139,7 +139,12 @@ function ContactPopup({ prospect, onClose }: { prospect: Prospect; onClose: () =
           <div className="absolute bottom-3 left-5 right-16">
             <div className="flex items-end gap-3">
               <div>
-                <h2 className="font-bold text-xl leading-tight">{prospect.name}</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-bold text-xl leading-tight">{prospect.name}</h2>
+                  {prospect.deletedAt && (
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded border bg-gray-500/15 text-gray-400 border-gray-500/30 shrink-0">Excluído do site</span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground font-mono mt-0.5 opacity-60">{prospect.id}</p>
               </div>
               {contact?.stage && (
@@ -381,6 +386,7 @@ function CadastrosPage() {
   const [filterHasCrm, setFilterHasCrm] = useState(false);
   const [filterHasAd, setFilterHasAd] = useState<"yes" | "no" | null>(null);
   const [filterOrigin, setFilterOrigin] = useState<"organic" | "whatsapp" | "pre-crm" | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
   const lastStateIdx = useRef(-1);
   const lastStageIdx = useRef(-1);
 
@@ -428,6 +434,8 @@ function CadastrosPage() {
       if (filterStages.length > 0 && !filterStages.includes(p.crmContact?.stage?.name || "")) return false;
       if (filterHasPhone && !p.whatsappE164) return false;
       if (filterHasCrm && !p.crmContact) return false;
+      if (!showDeleted && p.deletedAt) return false;
+      if (showDeleted && !p.deletedAt) return false;
       if (filterHasAd === "yes" && p.adStatus !== 1) return false;
       if (filterHasAd === "no" && p.adStatus === 1) return false;
       const isWhatsApp = !!p.crmContact?.instance;
@@ -450,7 +458,7 @@ function CadastrosPage() {
   const activeFilterCount =
     filterStates.length + filterStages.length +
     (filterHasPhone ? 1 : 0) + (filterHasCrm ? 1 : 0) +
-    (filterHasAd ? 1 : 0) + (filterOrigin ? 1 : 0);
+    (filterHasAd ? 1 : 0) + (filterOrigin ? 1 : 0) + (showDeleted ? 1 : 0);
 
   const toggleMultiFilter = (
     value: string,
@@ -561,6 +569,7 @@ function CadastrosPage() {
                 <button onClick={() => setFilterOrigin(v => v === "organic" ? null : "organic")} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${filterOrigin === "organic" ? "bg-teal-500/15 border-teal-500/50 text-teal-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}>Orgânicos</button>
                 <button onClick={() => setFilterOrigin(v => v === "whatsapp" ? null : "whatsapp")} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${filterOrigin === "whatsapp" ? "bg-violet-500/15 border-violet-500/50 text-violet-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}>Via WhatsApp</button>
                 <button onClick={() => setFilterOrigin(v => v === "pre-crm" ? null : "pre-crm")} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${filterOrigin === "pre-crm" ? "bg-zinc-500/15 border-zinc-500/50 text-zinc-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}>Pré-CRM</button>
+                <button onClick={() => setShowDeleted(v => !v)} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${showDeleted ? "bg-gray-500/15 border-gray-500/50 text-gray-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}>Excluídos do site</button>
               </div>
               {availableStates.length > 0 && (
                 <div className="space-y-2">
@@ -661,7 +670,12 @@ function CadastrosPage() {
                           )}
                         </td>
                         <td className="px-3 py-2.5 max-w-[200px]">
-                          <span className="font-medium truncate block">{prospect.name}</span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-medium truncate">{prospect.name}</span>
+                            {prospect.deletedAt && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-gray-500/15 text-gray-400 border-gray-500/30 shrink-0">Excluído</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-2.5 hidden sm:table-cell">
                           {phone ? (

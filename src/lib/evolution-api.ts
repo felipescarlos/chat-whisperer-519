@@ -586,6 +586,7 @@ export interface Prospect {
   email: string | null;
   adStatus: number | null;
   adId: number | null;
+  deletedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
   crmContact: ProspectCrmContact | null;
