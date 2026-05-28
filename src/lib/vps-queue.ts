@@ -1,5 +1,14 @@
 // Cliente para a fila de disparos rodando no VPS (picjob-agent)
 const VPS_BASE = "https://wpp.rodrigobernardo.com.br/agent";
+const CRM_BASE = "https://wpp.rodrigobernardo.com.br/agent/api";
+const CRM_API_TOKEN = (import.meta.env.VITE_CRM_API_TOKEN as string | undefined) || "";
+
+function crmHeaders() {
+  return {
+    "Content-Type": "application/json",
+    ...(CRM_API_TOKEN ? { "x-api-token": CRM_API_TOKEN } : {}),
+  };
+}
 
 export type BroadcastStatus = "pending" | "running" | "paused" | "stopped" | "completed";
 
@@ -8,6 +17,9 @@ export interface QueueNumber {
   status: "pending" | "sent" | "error";
   instance?: string;
   error_message?: string;
+  name?: string;
+  city?: string;
+  state?: string;
 }
 
 export interface VPSCampaign {
@@ -21,7 +33,24 @@ export interface VPSCampaign {
   max_sec: number;
   per_chip_limit: number;
   chips: string[];
+  segmentLabel?: string;
   numbers: QueueNumber[];
+}
+
+export interface CampaignAudienceItem {
+  number: string;
+  name: string;
+  city: string;
+  state: string;
+  stageLabel?: string;
+}
+
+export interface DuplicateCheckResult {
+  inActiveCampaign: { number: string; campaignName: string }[];
+  activeConversations: { number: string; name: string }[];
+  total: number;
+  duplicateCount: number;
+  cleanCount: number;
 }
 
 export async function createVPSCampaign(
@@ -56,10 +85,38 @@ export async function updateVPSCampaignStatus(
 }
 
 export async function retryVPSCampaignErrors(id: string): Promise<VPSCampaign> {
-  const res = await fetch(`${VPS_BASE}/campaigns/${id}/retry`, {
-    method: "POST",
-  });
+  const res = await fetch(`${VPS_BASE}/campaigns/${id}/retry`, { method: "POST" });
   if (!res.ok) throw new Error(`Erro ao retentar envios: ${res.statusText}`);
+  return res.json();
+}
+
+export async function deleteVPSCampaign(id: string): Promise<void> {
+  const res = await fetch(`${VPS_BASE}/campaigns/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Erro ao deletar campanha: ${res.statusText}`);
+}
+
+export async function fetchCampaignAudience(params: {
+  type: "contacts" | "prospects";
+  stageId?: string;
+  state?: string;
+  city?: string;
+}): Promise<CampaignAudienceItem[]> {
+  const qs = new URLSearchParams({ type: params.type });
+  if (params.stageId) qs.set("stageId", params.stageId);
+  if (params.state) qs.set("state", params.state);
+  if (params.city) qs.set("city", params.city);
+  const res = await fetch(`${CRM_BASE}/campaigns/audience?${qs}`, { headers: crmHeaders() });
+  if (!res.ok) throw new Error(`Erro ao buscar audiência: ${res.statusText}`);
+  return res.json();
+}
+
+export async function checkCampaignDuplicates(numbers: string[]): Promise<DuplicateCheckResult> {
+  const res = await fetch(`${CRM_BASE}/campaigns/check-duplicates`, {
+    method: "POST",
+    headers: crmHeaders(),
+    body: JSON.stringify({ numbers }),
+  });
+  if (!res.ok) throw new Error(`Erro ao verificar duplicatas: ${res.statusText}`);
   return res.json();
 }
 
@@ -89,8 +146,7 @@ export function translateEvolutionError(raw: string): ErrorTranslation {
   if (msg.includes("401") || msg.includes("unauthorized") || msg.includes("apikey")) {
     return {
       title: "Não autorizado (401)",
-      explanation:
-        "A chave de API está incorreta ou sem permissão para esta instância.",
+      explanation: "A chave de API está incorreta ou sem permissão para esta instância.",
     };
   }
   if (msg.includes("404") || msg.includes("not found")) {
