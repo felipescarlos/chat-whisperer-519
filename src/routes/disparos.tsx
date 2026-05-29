@@ -56,6 +56,32 @@ function StatusBadge({ status }: { status: BroadcastStatus }) {
   );
 }
 
+// ── Phone normalization ───────────────────────────────────────
+function normalizePhone(raw: string): string {
+  // 1. Strip everything that isn't a digit (+, spaces, dashes, parentheses, dots)
+  let n = raw.replace(/\D/g, "");
+  // 2. Remove leading zeros (carrier/local dial prefix, e.g. 0, 011, 021)
+  n = n.replace(/^0+/, "");
+  // 3. If 10 or 11 digits, assume Brazilian number without country code — prepend 55
+  //    10 = DDD(2) + number(8)   →  551199999999  (12 digits)
+  //    11 = DDD(2) + number(9)   →  5511999999999 (13 digits)
+  if (n.length === 10 || n.length === 11) {
+    n = "55" + n;
+  }
+  // 4. If still 12 digits (55 + DDD + 8 digits), the 9th digit is missing.
+  //    WhatsApp BR mobile numbers require 13 digits — insert 9 after the DDD.
+  //    e.g. 551188884444 → 5511988884444
+  if (n.length === 12 && n.startsWith("55")) {
+    n = n.slice(0, 4) + "9" + n.slice(4);
+  }
+  return n;
+}
+
+function isValidPhone(n: string): boolean {
+  // Brazilian WhatsApp numbers: 55 + DDD(2) + 9 + 8 digits = 13 digits
+  return n.length === 13;
+}
+
 // ── Estimated duration ────────────────────────────────────────
 function estimateDuration(count: number, minSec: number, maxSec: number): string {
   const avgSec = (minSec + maxSec) / 2;
@@ -492,10 +518,10 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
         const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
         const items: CampaignAudienceItem[] = [];
         rows.forEach((row) => {
-          const raw = String(row[0] ?? "").replace(/\D/g, "");
-          if (raw.length >= 10) {
+          const normalized = normalizePhone(String(row[0] ?? ""));
+          if (isValidPhone(normalized)) {
             items.push({
-              number: raw,
+              number: normalized,
               name: String(row[1] ?? ""),
               city: String(row[2] ?? ""),
               state: String(row[3] ?? ""),
@@ -514,8 +540,8 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
   const handleManualNumbers = (text: string) => {
     const items: CampaignAudienceItem[] = text
       .split("\n")
-      .map((l) => l.replace(/\D/g, ""))
-      .filter((n) => n.length >= 10)
+      .map((l) => normalizePhone(l))
+      .filter(isValidPhone)
       .map((n) => ({ number: n, name: "", city: "", state: "" }));
     setAudience(items);
   };
