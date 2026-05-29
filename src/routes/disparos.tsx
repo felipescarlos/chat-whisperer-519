@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   Play, Pause, Square, Send, Server, CheckCircle2, AlertCircle, ChevronDown,
@@ -181,6 +181,7 @@ function DisparosPage() {
         <NovaCampanhaModal
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); refresh(); }}
+          activeCampaigns={campaigns.filter((c) => c.status === "running" || c.status === "paused")}
         />
       )}
     </AppShell>
@@ -442,7 +443,11 @@ type AudienceSource = "funil" | "leads" | "planilha" | "manual";
 
 const STEPS = ["Público", "Mensagem", "Configurações", "Revisão"];
 
-function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function NovaCampanhaModal({ onClose, onCreated, activeCampaigns }: {
+  onClose: () => void;
+  onCreated: () => void;
+  activeCampaigns: VPSCampaign[];
+}) {
   const [step, setStep] = useState(0);
 
   // Step 1: Público
@@ -481,6 +486,13 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
     fetchInstances().then(setInstances).catch(() => {});
     setLabels(loadAllLabels());
   }, []);
+
+  // Chips já alocados em campanhas ativas: chip → nome da campanha
+  const busyChips = useMemo(() => {
+    const map = new Map<string, string>();
+    activeCampaigns.forEach((c) => c.chips.forEach((chip) => map.set(chip, c.name)));
+    return map;
+  }, [activeCampaigns]);
 
   // Load audience when source/filters change
   useEffect(() => {
@@ -867,24 +879,30 @@ function NovaCampanhaModal({ onClose, onCreated }: { onClose: () => void; onCrea
                 <div className="space-y-1.5 max-h-44 overflow-y-auto bg-muted/20 rounded-lg p-3 border border-border">
                   {instances.map((inst) => {
                     const connected = isInstanceConnected(inst);
+                    const busyCamp = busyChips.get(inst.name);
+                    const disabled = !connected || !!busyCamp;
                     return (
                       <label
                         key={inst.name}
-                        className={`flex items-center gap-2.5 p-2 rounded cursor-pointer hover:bg-accent/50 transition-colors ${!connected ? "opacity-50" : ""}`}
+                        className={`flex items-center gap-2.5 p-2 rounded transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-accent/50"}`}
                       >
                         <Checkbox
                           checked={selectedChips.has(inst.name)}
-                          onCheckedChange={() =>
+                          onCheckedChange={() => {
+                            if (disabled) return;
                             setSelectedChips((s) => {
                               const n = new Set(s);
                               n.has(inst.name) ? n.delete(inst.name) : n.add(inst.name);
                               return n;
-                            })
-                          }
-                          disabled={!connected}
+                            });
+                          }}
+                          disabled={disabled}
                         />
                         <span className="flex-1 text-sm">{getChipDisplayName(inst, labels)}</span>
-                        <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-destructive"}`} />
+                        {busyCamp
+                          ? <span className="text-[10px] text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded shrink-0">em uso</span>
+                          : <span className={`h-2 w-2 rounded-full shrink-0 ${connected ? "bg-emerald-500" : "bg-destructive"}`} />
+                        }
                       </label>
                     );
                   })}
