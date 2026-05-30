@@ -16,6 +16,7 @@ import {
   Check,
   UserCheck,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,7 @@ function FunnelPage() {
   const [draggingContact, setDraggingContact] = useState<CRMContact | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const lastContactsRef = useRef<CRMContact[]>([]);
+  const [selectedContact, setSelectedContact] = useState<CRMContact | null>(null);
 
   // New stage form state
   const [newStageName, setNewStageName] = useState("");
@@ -561,6 +563,7 @@ function FunnelPage() {
                 onMove={handleMoveContact}
                 onToggleBot={handleToggleBot}
                 onNavigate={(num) => navigate({ to: "/", search: { chat: num } })}
+                onSelect={setSelectedContact}
               />
             )}
 
@@ -585,12 +588,158 @@ function FunnelPage() {
                 onMove={handleMoveContact}
                 onToggleBot={handleToggleBot}
                 onNavigate={(num) => navigate({ to: "/", search: { chat: num } })}
+                onSelect={setSelectedContact}
               />
             ))}
           </div>
         </div>
       </div>
+
+      {selectedContact && (
+        <ContactDetailPopup contact={selectedContact} onClose={() => setSelectedContact(null)} />
+      )}
     </AppShell>
+  );
+}
+
+// ─── Contact Detail Popup ────────────────────────────────────────────────────
+function ContactDetailPopup({ contact, onClose }: { contact: CRMContact; onClose: () => void }) {
+  const phone = contact.number;
+  const waUrl = `https://wa.me/${phone}`;
+  const initials = (contact.name || contact.number).slice(0, 2).toUpperCase();
+  const stageColor = contact.stage?.color;
+  const tagList = contact.tags ? contact.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative z-10 w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="relative flex-shrink-0">
+          <div
+            className="w-full h-24 flex items-center justify-center"
+            style={stageColor
+              ? { background: `linear-gradient(135deg, ${stageColor}30 0%, ${stageColor}10 100%)` }
+              : { background: "linear-gradient(135deg, hsl(var(--muted)) 0%, transparent 100%)" }
+            }
+          >
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold"
+              style={stageColor
+                ? { backgroundColor: stageColor + "30", color: stageColor }
+                : { backgroundColor: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" }
+              }
+            >
+              {initials}
+            </div>
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <div className="absolute bottom-3 left-5 right-16 flex items-end gap-3">
+            <div>
+              <h2 className="font-bold text-lg leading-tight">{contact.name || contact.number}</h2>
+              <p className="text-xs text-muted-foreground font-mono mt-0.5">{phone}</p>
+            </div>
+            {contact.stage && (
+              <span
+                className="mb-0.5 text-xs font-semibold px-2.5 py-1 rounded-full border flex-shrink-0"
+                style={{ backgroundColor: stageColor + "30", color: stageColor, borderColor: stageColor + "50" }}
+              >
+                {contact.stage.name}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+              <p className="text-[10px] text-muted-foreground">WhatsApp</p>
+              <p className="text-sm font-mono font-medium">{phone}</p>
+            </div>
+            <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2">
+              <p className="text-[10px] text-muted-foreground">Bot IA</p>
+              <p className={`text-sm font-medium ${contact.botEnabled ? "text-emerald-400" : "text-muted-foreground"}`}>
+                {contact.botEnabled ? "Ativo" : "Inativo"}
+              </p>
+            </div>
+            {contact.email && (
+              <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 col-span-2">
+                <p className="text-[10px] text-muted-foreground">Email</p>
+                <p className="text-sm font-medium break-all">{contact.email}</p>
+              </div>
+            )}
+            {contact.notes && (
+              <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 col-span-2">
+                <p className="text-[10px] text-muted-foreground">Notas</p>
+                <p className="text-sm text-muted-foreground italic">{contact.notes}</p>
+              </div>
+            )}
+          </div>
+
+          {tagList.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tags</p>
+              <div className="flex flex-wrap gap-1.5">
+                {tagList.map((t) => (
+                  <span key={t} className="text-[10px] px-2 py-0.5 rounded-full border font-medium bg-primary/10 text-primary border-primary/25">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {contact.messages && contact.messages.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Últimas mensagens</p>
+              <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                {contact.messages.slice(0, 6).map((msg, i) => {
+                  const text = String(msg.text || getMessageText(msg) || "");
+                  if (!text) return null;
+                  const fromMe = msg.fromMe !== undefined ? msg.fromMe : !!(msg as any).key?.fromMe;
+                  return (
+                    <div key={i} className={`text-xs px-3 py-2 rounded-lg border ${fromMe ? "bg-primary/10 border-primary/20 ml-8" : "bg-muted/40 border-border/50 mr-8"}`}>
+                      <span className={`text-[10px] font-medium block mb-0.5 ${fromMe ? "text-primary" : "text-muted-foreground"}`}>
+                        {fromMe ? "Você" : (contact.name || contact.number)}
+                      </span>
+                      <p className="text-foreground/80 leading-relaxed">{text.slice(0, 160)}{text.length > 160 ? "…" : ""}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex-shrink-0 flex gap-2 p-4 border-t border-border/60 bg-card">
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-medium transition-colors"
+          >
+            <MessageCircle className="h-4 w-4" /> WhatsApp
+          </a>
+          <a
+            href={`/?chat=${phone}`}
+            className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors"
+          >
+            <MessageCircle className="h-4 w-4" /> Abrir Chat
+          </a>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -610,9 +759,10 @@ interface KanbanColumnProps {
   onMove: (num: string, stageId: string | null) => void;
   onToggleBot: (contact: CRMContact) => void;
   onNavigate: (num: string) => void;
+  onSelect: (contact: CRMContact) => void;
 }
 
-function KanbanColumn({ stageId, title, color, items, stages, draggingContact, dragOverStage, onDragOver, onDrop, onDragStart, onDragEnd, onMove, onToggleBot, onNavigate }: KanbanColumnProps) {
+function KanbanColumn({ stageId, title, color, items, stages, draggingContact, dragOverStage, onDragOver, onDrop, onDragStart, onDragEnd, onMove, onToggleBot, onNavigate, onSelect }: KanbanColumnProps) {
   const isDragTarget = dragOverStage === stageId && draggingContact !== null;
   return (
     <div
@@ -645,6 +795,7 @@ function KanbanColumn({ stageId, title, color, items, stages, draggingContact, d
               onNavigate={onNavigate}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
+              onSelect={onSelect}
             />
           ))
         )}
@@ -662,9 +813,10 @@ interface ContactCardProps {
   onNavigate: (num: string) => void;
   onDragStart: (contact: CRMContact) => void;
   onDragEnd: () => void;
+  onSelect: (contact: CRMContact) => void;
 }
 
-function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate, onDragStart, onDragEnd }: ContactCardProps) {
+function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate, onDragStart, onDragEnd, onSelect }: ContactCardProps) {
   const lastMsg = contact.messages && contact.messages[0];
   const lastMsgText: string = lastMsg ? String(lastMsg.text || getMessageText(lastMsg) || "") : "";
   const lastMsgTime = lastMsg ? lastMsg.messageTimestamp : null;
@@ -686,12 +838,15 @@ function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate, onDragS
     return contact.tags.split(",").map(t => t.trim()).filter(Boolean);
   }, [contact.tags]);
 
+  const draggedRef = useRef(false);
+
   return (
     <div
       className="p-3 bg-card border border-border/70 rounded-lg hover:shadow-elevated transition-all flex flex-col gap-2 group relative cursor-grab active:cursor-grabbing"
       draggable
-      onDragStart={() => onDragStart(contact)}
-      onDragEnd={onDragEnd}
+      onDragStart={() => { draggedRef.current = true; onDragStart(contact); }}
+      onDragEnd={() => { onDragEnd(); setTimeout(() => { draggedRef.current = false; }, 50); }}
+      onClick={() => { if (!draggedRef.current) onSelect(contact); }}
     >
       
       {/* Header do card: Nome / Tempo */}
@@ -738,8 +893,8 @@ function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate, onDragS
       <div className="flex items-center justify-between gap-2 mt-1">
         
         {/* Toggle do Bot */}
-        <button 
-          onClick={() => onToggleBot(contact)}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleBot(contact); }}
           className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium border transition-colors ${
             contact.botEnabled 
               ? "bg-primary/10 text-primary border-primary/25 hover:bg-primary/20"
@@ -775,11 +930,11 @@ function ContactCard({ contact, stages, onMove, onToggleBot, onNavigate, onDragS
           </Select>
 
           {/* Botão de abrir conversa */}
-          <Button 
-            size="sm" 
-            variant="ghost" 
+          <Button
+            size="sm"
+            variant="ghost"
             className="h-6 w-6 p-0 hover:bg-primary hover:text-white"
-            onClick={() => onNavigate(contact.number)}
+            onClick={(e) => { e.stopPropagation(); onNavigate(contact.number); }}
             title="Abrir Chat"
           >
             <MessageCircle className="h-3.5 w-3.5" />

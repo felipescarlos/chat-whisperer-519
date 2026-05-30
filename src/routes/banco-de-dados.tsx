@@ -428,6 +428,18 @@ function parseCSV(text: string): Record<string, string>[] {
   });
 }
 
+const AUTO_NAME_COLS = ["nome", "name", "anunciante", "acompanhante", "modelo", "perfil", "usuario", "usuário"];
+const AUTO_PHONE_COLS = ["telefone", "phone", "whatsapp", "celular", "fone", "tel", "numero", "número", "whats", "cel", "contato"];
+
+function detectCol(headers: string[], patterns: string[]): string {
+  const lower = headers.map((h) => h.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""));
+  for (const p of patterns) {
+    const idx = lower.findIndex((h) => h.includes(p));
+    if (idx >= 0) return headers[idx];
+  }
+  return "";
+}
+
 function ImportModal({
   onClose,
   onImported,
@@ -448,7 +460,11 @@ function ImportModal({
   const [cityInput, setCityInput] = useState(currentCity);
   const [importing, setImporting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [nameCol, setNameCol] = useState("");
+  const [phoneCol, setPhoneCol] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const availableCols = rows[0] ? Object.keys(rows[0]) : [];
 
   const citySuggestions = [
     ...new Set([
@@ -456,6 +472,13 @@ function ImportModal({
       ...(BR_CITIES.find((s) => s.state === targetState)?.cities || []),
     ]),
   ].sort();
+
+  const applyRows = (newRows: ImportRow[]) => {
+    setRows(newRows);
+    const headers = newRows[0] ? Object.keys(newRows[0]) : [];
+    setNameCol(detectCol(headers, AUTO_NAME_COLS));
+    setPhoneCol(detectCol(headers, AUTO_PHONE_COLS));
+  };
 
   const processFile = (file: File) => {
     setFileName(file.name);
@@ -467,12 +490,12 @@ function ImportModal({
         const wb = XLSX.read(data, { type: "array" });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json<ImportRow>(ws, { defval: "" });
-        setRows(json.slice(0, 2000));
+        applyRows(json.slice(0, 2000));
       };
       reader.readAsArrayBuffer(file);
     } else {
       const reader = new FileReader();
-      reader.onload = (e) => setRows(parseCSV(e.target?.result as string).slice(0, 2000));
+      reader.onload = (e) => applyRows(parseCSV(e.target?.result as string).slice(0, 2000));
       reader.readAsText(file, "utf-8");
     }
   };
@@ -488,7 +511,11 @@ function ImportModal({
     if (!targetState || !targetCity || rows.length === 0) return;
     setImporting(true);
     try {
-      const res = await importProspects({ rows, targetCity, targetState });
+      const remapped = rows.map((r) => ({
+        nome: nameCol ? String(r[nameCol] ?? "") : "",
+        telefone: phoneCol ? String(r[phoneCol] ?? "") : "",
+      }));
+      const res = await importProspects({ rows: remapped, targetCity, targetState });
       onImported(res.created, res.updated);
     } catch {
       toast.error("Erro ao importar contatos");
@@ -584,6 +611,40 @@ function ImportModal({
             </>
           )}
 
+          {/* Column mapping — shown when file is loaded */}
+          {rows.length > 0 && availableCols.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mapeamento de colunas</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">Coluna do Nome</label>
+                  <select
+                    value={nameCol}
+                    onChange={(e) => setNameCol(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-border bg-muted/40 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  >
+                    <option value="">(nenhuma)</option>
+                    {availableCols.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">Coluna do Telefone</label>
+                  <select
+                    value={phoneCol}
+                    onChange={(e) => setPhoneCol(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-border bg-muted/40 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  >
+                    <option value="">(nenhuma)</option>
+                    {availableCols.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              {!nameCol && !phoneCol && (
+                <p className="text-[11px] text-amber-400">Nenhuma coluna mapeada automaticamente. Selecione manualmente acima.</p>
+              )}
+            </div>
+          )}
+
           {/* Destination */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -675,6 +736,43 @@ function BancoDeDadosPage() {
 
   // Import modal
   const [showImportModal, setShowImportModal] = useState(false);
+
+  // Manual folders (localStorage)
+  const [pinnedStates, setPinnedStates] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("db-pinned-states") || "[]"); } catch { return []; }
+  });
+  const [pinnedCities, setPinnedCities] = useState<{ state: string; city: string }[]>(() => {
+    try { return JSON.parse(localStorage.getItem("db-pinned-cities") || "[]"); } catch { return []; }
+  });
+  const [showCreateStateModal, setShowCreateStateModal] = useState(false);
+  const [createStateValue, setCreateStateValue] = useState("");
+  const [showCreateCityModal, setShowCreateCityModal] = useState(false);
+  const [createCityValue, setCreateCityValue] = useState("");
+
+  const savePinnedStates = (arr: string[]) => {
+    setPinnedStates(arr);
+    localStorage.setItem("db-pinned-states", JSON.stringify(arr));
+  };
+  const savePinnedCities = (arr: { state: string; city: string }[]) => {
+    setPinnedCities(arr);
+    localStorage.setItem("db-pinned-cities", JSON.stringify(arr));
+  };
+  const handleCreateState = () => {
+    if (!createStateValue) return;
+    if (!pinnedStates.includes(createStateValue)) savePinnedStates([...pinnedStates, createStateValue]);
+    setFilterState(createStateValue);
+    setShowCreateStateModal(false);
+    setCreateStateValue("");
+  };
+  const handleCreateCity = () => {
+    if (!createCityValue.trim() || !filterState) return;
+    const city = createCityValue.trim();
+    const already = pinnedCities.some((p) => p.state === filterState && p.city === city);
+    if (!already) savePinnedCities([...pinnedCities, { state: filterState, city }]);
+    setFilterCity(city);
+    setShowCreateCityModal(false);
+    setCreateCityValue("");
+  };
 
   // Move modal state
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -851,15 +949,26 @@ function BancoDeDadosPage() {
     return acc;
   }, {} as Record<string, { total: number; cities: { city: string; count: number }[] }>);
 
-  // Sort states by count descending
-  const sortedStates = groupedStats
-    ? Object.entries(groupedStats)
-        .sort((a, b) => b[1].total - a[1].total)
-        .map(([stateCode, data]) => {
-          const sortedCities = [...data.cities].sort((a, b) => b.count - a.count);
-          return [stateCode, { ...data, cities: sortedCities }] as const;
-        })
-    : [];
+  // Sort states by count descending, merge with pinned manual states
+  const sortedStates = useMemo(() => {
+    const base = groupedStats
+      ? Object.entries(groupedStats)
+          .sort((a, b) => b[1].total - a[1].total)
+          .map(([stateCode, data]) => {
+            const sortedCities = [...data.cities].sort((a, b) => b.count - a.count);
+            return [stateCode, { ...data, cities: sortedCities }] as [string, { total: number; cities: { city: string; count: number }[] }];
+          })
+      : [] as [string, { total: number; cities: { city: string; count: number }[] }][];
+
+    const existing = new Set(base.map(([code]) => code));
+    for (const code of pinnedStates) {
+      if (!existing.has(code)) {
+        const manualCities = pinnedCities.filter((p) => p.state === code).map((p) => ({ city: p.city, count: 0 }));
+        base.push([code, { total: 0, cities: manualCities }]);
+      }
+    }
+    return base;
+  }, [groupedStats, pinnedStates, pinnedCities]);
 
   const handleExportCSV = async () => {
     if (!filterState || !filterCity) return;
@@ -1153,9 +1262,20 @@ function BancoDeDadosPage() {
           {/* Root Level: Show States Folders — Scraper only */}
           {!filterState && (
             <div className="space-y-4">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Pastas de Estados
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Pastas de Estados
+                </h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCreateStateModal(true)}
+                  className="h-7 px-3 text-xs gap-1.5"
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                  Criar pasta de estado
+                </Button>
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {sortedStates.map(([stateCode, data]) => {
                   const label = stateCode === "SEM_ESTADO" ? "Sem localização" : (STATES.find((s) => s.code === stateCode)?.label || stateCode);
@@ -1221,11 +1341,20 @@ function BancoDeDadosPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowImportModal(true)}
+                    onClick={() => setShowCreateCityModal(true)}
                     className="h-7 px-3 text-xs gap-1.5"
                   >
                     <FolderPlus className="h-3.5 w-3.5" />
-                    Nova pasta
+                    Nova pasta (vazia)
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowImportModal(true)}
+                    className="h-7 px-3 text-xs gap-1.5"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Importar planilha
                   </Button>
 
                   {/* Botão Stop — aparece sempre que houver scraping em andamento */}
@@ -1247,7 +1376,14 @@ function BancoDeDadosPage() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {currentStateData?.cities.map(({ city, count }) => {
+                {((() => {
+                  const dbCities = currentStateData?.cities || [];
+                  const dbCityNames = new Set(dbCities.map((c) => c.city));
+                  const manualOnly = pinnedCities
+                    .filter((p) => p.state === filterState && !dbCityNames.has(p.city))
+                    .map((p) => ({ city: p.city, count: 0 }));
+                  return [...dbCities, ...manualOnly];
+                })()).map(({ city, count }) => {
                   const anyRefreshing = SCRAPE_SOURCES.some(s => refreshingKey === `${city}|${s.id}`);
                   const activeSource = SCRAPE_SOURCES.find(s => refreshingKey === `${city}|${s.id}`);
                   return (
@@ -1295,9 +1431,9 @@ function BancoDeDadosPage() {
                   );
                 })}
 
-                {(!currentStateData || currentStateData.cities.length === 0) && (
+                {(!currentStateData || currentStateData.cities.length === 0) && pinnedCities.filter((p) => p.state === filterState).length === 0 && (
                   <div className="col-span-full py-12 text-center text-muted-foreground bg-card/25 border border-dashed border-border rounded-xl">
-                    Nenhuma cidade encontrada para este estado.
+                    Nenhuma cidade encontrada para este estado. Use "Nova pasta (vazia)" para criar uma.
                   </div>
                 )}
               </div>
@@ -1974,6 +2110,68 @@ function BancoDeDadosPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Create state folder modal */}
+      {showCreateStateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateStateModal(false)} />
+          <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
+            <h2 className="font-semibold text-base flex items-center gap-2">
+              <FolderPlus className="h-4 w-4 text-violet-400" />
+              Criar pasta de estado
+            </h2>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Estado</label>
+              <select
+                value={createStateValue}
+                onChange={(e) => setCreateStateValue(e.target.value)}
+                className="w-full h-10 rounded-lg border border-border bg-muted/40 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+              >
+                <option value="">Selecione…</option>
+                {STATES.map((s) => (
+                  <option key={s.code} value={s.code}>{s.label} ({s.code})</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="ghost" size="sm" onClick={() => { setShowCreateStateModal(false); setCreateStateValue(""); }}>Cancelar</Button>
+              <Button size="sm" disabled={!createStateValue} onClick={handleCreateState} className="bg-violet-600 hover:bg-violet-700 text-white">
+                Criar pasta
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create city folder modal */}
+      {showCreateCityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateCityModal(false)} />
+          <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
+            <h2 className="font-semibold text-base flex items-center gap-2">
+              <FolderPlus className="h-4 w-4 text-emerald-400" />
+              Nova pasta de cidade — {filterState}
+            </h2>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Nome da cidade</label>
+              <input
+                autoFocus
+                value={createCityValue}
+                onChange={(e) => setCreateCityValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreateCity(); }}
+                placeholder="Ex: Natal"
+                className="w-full h-10 rounded-lg border border-border bg-muted/40 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="ghost" size="sm" onClick={() => { setShowCreateCityModal(false); setCreateCityValue(""); }}>Cancelar</Button>
+              <Button size="sm" disabled={!createCityValue.trim()} onClick={handleCreateCity} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                Criar pasta
+              </Button>
+            </div>
           </div>
         </div>
       )}
