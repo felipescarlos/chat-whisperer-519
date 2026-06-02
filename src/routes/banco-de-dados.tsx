@@ -7,7 +7,7 @@ import {
   RefreshCw, MessageCircle, MapPin, Square, Trash2, CheckSquare,
   FolderInput, AlertTriangle, X, LayoutList, LayoutGrid, Upload,
   FolderPlus, Bot, Tag, Calendar, ExternalLink, Phone, SlidersHorizontal, ChevronDown,
-  ArrowUpDown, ChevronUp,
+  ArrowUpDown, ChevronUp, CopyX,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
   fetchProspects, fetchProspectStats,
   triggerScrape, fetchScrapeStatus, stopScrape,
   deleteProspects, previewMoveProspects, moveProspects,
-  fetchProspectCrmInfo, importProspects,
+  fetchProspectCrmInfo, importProspects, deduplicateProspects,
 } from "@/lib/evolution-api";
 import { ScrapeLiveFeed } from "@/components/ScrapeLiveFeed";
 import { STATES } from "@/lib/states";
@@ -772,6 +772,44 @@ function BancoDeDadosPage() {
     setFilterCity(city);
     setShowCreateCityModal(false);
     setCreateCityValue("");
+  };
+
+  // Dedup modal state
+  const [dedupState, setDedupState] = useState<
+    | { phase: "idle" }
+    | { phase: "checking" }
+    | { phase: "confirm"; duplicatePhones: number; duplicateProspects: number }
+    | { phase: "running" }
+  >({ phase: "idle" });
+
+  const handleDedupCheck = async () => {
+    setDedupState({ phase: "checking" });
+    try {
+      const res = await deduplicateProspects({ city: filterCity, state: filterState, dryRun: true });
+      if (res.duplicatePhones === 0) {
+        toast.success("Nenhuma duplicata encontrada nesta pasta.");
+        setDedupState({ phase: "idle" });
+      } else {
+        setDedupState({ phase: "confirm", duplicatePhones: res.duplicatePhones, duplicateProspects: res.duplicateProspects });
+      }
+    } catch {
+      toast.error("Erro ao verificar duplicatas");
+      setDedupState({ phase: "idle" });
+    }
+  };
+
+  const handleDedupConfirm = async () => {
+    setDedupState({ phase: "running" });
+    try {
+      const res = await deduplicateProspects({ city: filterCity, state: filterState, dryRun: false });
+      toast.success(`${res.deleted} duplicata${res.deleted !== 1 ? "s" : ""} removida${res.deleted !== 1 ? "s" : ""} — ${res.duplicatePhones} número${res.duplicatePhones !== 1 ? "s" : ""} afetado${res.duplicatePhones !== 1 ? "s" : ""}`);
+      setDedupState({ phase: "idle" });
+      loadProspects();
+      loadStats();
+    } catch {
+      toast.error("Erro ao remover duplicatas");
+      setDedupState({ phase: "idle" });
+    }
   };
 
   // Move modal state
@@ -1541,6 +1579,19 @@ function BancoDeDadosPage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={handleDedupCheck}
+                    disabled={dedupState.phase === "checking" || dedupState.phase === "running" || dedupState.phase === "confirm"}
+                    className="gap-2 h-9 text-amber-400 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-300"
+                  >
+                    {dedupState.phase === "checking"
+                      ? <RefreshCw className="h-4 w-4 animate-spin" />
+                      : <CopyX className="h-4 w-4" />}
+                    {dedupState.phase === "checking" ? "Verificando…" : "Duplicatas"}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setShowImportModal(true)}
                     className="gap-2 h-9"
                   >
@@ -2170,6 +2221,58 @@ function BancoDeDadosPage() {
               <Button variant="ghost" size="sm" onClick={() => { setShowCreateCityModal(false); setCreateCityValue(""); }}>Cancelar</Button>
               <Button size="sm" disabled={!createCityValue.trim()} onClick={handleCreateCity} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                 Criar pasta
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dedup confirm modal */}
+      {dedupState.phase === "confirm" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDedupState({ phase: "idle" })} />
+          <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
+                <CopyX className="h-5 w-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-base">Duplicatas encontradas</h3>
+                <p className="text-xs text-muted-foreground">{filterCity} · {filterState}</p>
+              </div>
+            </div>
+
+            <div className="bg-muted/30 border border-border/60 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Números duplicados</span>
+                <span className="font-bold text-amber-400">{dedupState.duplicatePhones}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Registros a remover</span>
+                <span className="font-bold text-red-400">{dedupState.duplicateProspects}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Para cada número duplicado, o registro com mais dados será mantido (prioridade: vínculo com site › mais portais › mais recente). Os demais serão removidos permanentemente.
+            </p>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-1"
+                onClick={() => setDedupState({ phase: "idle" })}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white gap-1.5"
+                onClick={handleDedupConfirm}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Remover {dedupState.duplicateProspects}
               </Button>
             </div>
           </div>

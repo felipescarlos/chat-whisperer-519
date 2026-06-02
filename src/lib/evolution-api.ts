@@ -750,6 +750,17 @@ export function importProspects(data: {
   );
 }
 
+export function deduplicateProspects(data: {
+  city: string;
+  state: string;
+  dryRun?: boolean;
+}) {
+  return scraperRequest<{ ok: boolean; duplicatePhones: number; duplicateProspects: number; deleted: number }>(
+    "/prospects/deduplicate",
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
 // ─── Rotinas de Captura Agendada ──────────────────────────────────────────────
 
 export interface ProspectRoutine {
