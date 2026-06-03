@@ -805,3 +805,53 @@ export function deleteRoutine(id: string) {
   });
 }
 
+// ── Extension Jobs ────────────────────────────────────────────────────────────
+export interface ExtensionJob {
+  id: string;
+  name: string;
+  status: "pending" | "running" | "done" | "failed";
+  state: string;
+  cities: string[];
+  sources: string[];
+  pageFrom: number;
+  pageTo: number;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  result: { created?: number; updated?: number; error?: string } | null;
+}
+
+export interface ExtensionStatus {
+  online: boolean;
+  lastSeen?: string;
+  ageMin?: number;
+}
+
+export function fetchExtensionStatus() {
+  return scraperRequest<ExtensionStatus>("/extension-jobs/status");
+}
+
+export function fetchExtensionJobs() {
+  return scraperRequest<ExtensionJob[]>("/extension-jobs");
+}
+
+export function createExtensionJob(data: {
+  name?: string;
+  state: string;
+  cities?: string[];
+  sources?: string[];
+  pageFrom?: number;
+  pageTo?: number;
+}) {
+  return scraperRequest<ExtensionJob>("/extension-jobs", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteExtensionJob(id: string) {
+  return scraperRequest<{ ok: boolean }>(`/extension-jobs/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
