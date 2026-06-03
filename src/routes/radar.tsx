@@ -456,7 +456,7 @@ function RadarPage() {
                 <Zap className="h-4 w-4 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-semibold mb-0.5">Extensão não detectada</p>
-                  <p className="text-amber-400/70">Instale a extensão Skokka Scraper no Chrome e abra qualquer página. Os jobs criados ficam na fila e serão executados assim que a extensão ficar online.</p>
+                  <p className="text-amber-400/70">Instale a extensão Skokka Scraper no Chrome e abra qualquer página. Os jobs criados ficam na fila e serão executados em até 1 minuto assim que a extensão ficar online.</p>
                 </div>
               </div>
             )}
@@ -695,7 +695,7 @@ function RadarPage() {
                 </div>
                 <div className="flex items-start gap-2 bg-orange-500/5 border border-orange-500/20 rounded-lg p-3 text-xs text-orange-400/80">
                   <ChevronRight className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>O job fica na fila e é executado em até 5 minutos quando o Chrome estiver aberto com a extensão instalada.</span>
+                  <span>O job fica na fila e é executado em até 1 minuto quando o Chrome estiver aberto com a extensão instalada.</span>
                 </div>
               </div>
               <div className="flex gap-3">
