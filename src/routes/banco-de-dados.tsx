@@ -1780,16 +1780,40 @@ function BancoDeDadosPage() {
                                   </div>
                                 </td>
                                 <td className="px-3 py-2 hidden lg:table-cell text-xs text-muted-foreground whitespace-nowrap">
-                                  {prospect.crmContact?.messages?.[0] ? (
-                                    <span className="truncate block max-w-[160px]" title={prospect.crmContact.messages[0].text}>
-                                      {prospect.crmContact.messages[0].fromMe ? "↗ " : "↙ "}
-                                      {prospect.crmContact.messages[0].text.slice(0, 40)}{prospect.crmContact.messages[0].text.length > 40 ? "…" : ""}
-                                    </span>
-                                  ) : (
-                                    <span className="text-muted-foreground/40">
-                                      {new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
-                                    </span>
-                                  )}
+                                  {(() => {
+                                    // Data de publicação do anúncio (ex: sourceUrls.skokkaDate)
+                                    const adDate = prospect.sources
+                                      .map(s => (prospect.sourceUrls as Record<string, string>)?.[`${s}Date`])
+                                      .find(d => !!d);
+                                    if (adDate) {
+                                      const d = new Date(adDate + 'T12:00:00');
+                                      const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
+                                      const color = diffDays > 180
+                                        ? "text-red-400/70"
+                                        : diffDays > 60
+                                        ? "text-yellow-400/70"
+                                        : "text-emerald-400/70";
+                                      return (
+                                        <span className={`flex flex-col ${color}`} title={`Anúncio publicado em ${d.toLocaleDateString("pt-BR")}`}>
+                                          <span className="font-medium">{d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })}</span>
+                                          <span className="text-[10px] opacity-70">{diffDays === 0 ? "hoje" : diffDays === 1 ? "ontem" : `há ${diffDays}d`}</span>
+                                        </span>
+                                      );
+                                    }
+                                    if (prospect.crmContact?.messages?.[0]) {
+                                      return (
+                                        <span className="truncate block max-w-[160px]" title={prospect.crmContact.messages[0].text}>
+                                          {prospect.crmContact.messages[0].fromMe ? "↗ " : "↙ "}
+                                          {prospect.crmContact.messages[0].text.slice(0, 40)}{prospect.crmContact.messages[0].text.length > 40 ? "…" : ""}
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <span className="text-muted-foreground/40">
+                                        {new Date(prospect.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                                      </span>
+                                    );
+                                  })()}
                                 </td>
                                 <td className="px-3 py-2">
                                   {waUrl && !selectionMode && (
