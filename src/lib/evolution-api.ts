@@ -38,6 +38,7 @@ export interface Instance {
   profileName?: string | null;
   profilePicUrl?: string | null;
   number?: string | null;
+  integration?: string; // "WHATSAPP-BAILEYS" | "WHATSAPP-BUSINESS"
   // raw fallback
   [k: string]: unknown;
 }

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Trash2, RefreshCw, Smartphone, Pencil, Webhook, Shield, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Smartphone, Pencil, Webhook, Shield, ShieldCheck, Cloud } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -264,10 +264,11 @@ function ChipsPage() {
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {instances.map((i) => {
                 const connected = isInstanceConnected(i);
+                const isCloudApi = i.integration === "WHATSAPP-BUSINESS";
                 return (
                   <div
                     key={i.name}
-                    className="bg-card border border-border rounded-lg p-4 flex flex-col gap-3"
+                    className={`bg-card border rounded-lg p-4 flex flex-col gap-3 ${isCloudApi ? "border-blue-500/40 shadow-[0_0_12px_rgba(59,130,246,0.08)]" : "border-border"}`}
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-14 w-14">
@@ -322,7 +323,14 @@ function ChipsPage() {
                         <div className="text-xs text-muted-foreground truncate">
                           {i.ownerJid ? i.ownerJid.replace(/@.*$/, "") : i.number || "—"}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate">@{i.name}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground truncate">@{i.name}</span>
+                          {isCloudApi && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25 shrink-0">
+                              <Cloud className="h-2.5 w-2.5" /> Meta API
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span
                         className={`h-3 w-3 rounded-full shrink-0 ${
