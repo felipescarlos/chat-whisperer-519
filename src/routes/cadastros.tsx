@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, RefreshCw, MessageCircle, ExternalLink, X,
-  SlidersHorizontal, ChevronDown, ArrowUpDown, ChevronUp, Users,
+  SlidersHorizontal, ChevronDown, ArrowUpDown, ChevronUp, Users, Download,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -370,6 +370,37 @@ function ContactPopup({ prospect, onClose }: { prospect: Prospect; onClose: () =
 
 const LIMIT = 2000;
 
+const AD_STATUS_LABEL: Record<number, string> = { 0: "Rascunho", 1: "Ativo", 2: "Em análise", 3: "Reprovado", 7: "Desativado" };
+
+function downloadCsv(data: Prospect[]) {
+  const headers = ["Nome", "Telefone", "Email", "Cidade", "Estado", "Situação no Site", "Etapa do Funil", "Bot", "Origem", "Cadastrado em", "Último contato CRM", "Excluído do site"];
+  const rows = data.map((p) => {
+    const phone = p.whatsappE164 || p.whatsappDisplay || "";
+    const adStatus = p.adStatus != null ? (AD_STATUS_LABEL[p.adStatus] ?? `Status ${p.adStatus}`) : "";
+    const stage = p.crmContact?.stage?.name || "";
+    const botEnabled = p.crmContact ? (p.crmContact.botEnabled ? "Ativo" : "Inativo") : "";
+    const isWhatsApp = !!p.crmContact?.instance;
+    const isPreCrm = !isWhatsApp && new Date(p.firstSeenAt) < PRE_CRM_CUTOFF;
+    const origin = isWhatsApp ? "Via WhatsApp" : isPreCrm ? "Pré-CRM" : "Orgânico";
+    const firstSeenAt = new Date(p.firstSeenAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
+    const lastContactAt = p.crmContact?.lastContactAt
+      ? new Date(p.crmContact.lastContactAt * 1000).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" })
+      : "";
+    return [p.name, phone, p.email || "", p.city || "", p.state || "", adStatus, stage, botEnabled, origin, firstSeenAt, lastContactAt, p.deletedAt ? "Sim" : "Não"];
+  });
+  const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = [headers, ...rows].map((row) => row.map(esc).join(",")).join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `cadastros-picjob-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function CadastrosPage() {
   const [items, setItems] = useState<Prospect[]>([]);
   const [total, setTotal] = useState(0);
@@ -516,6 +547,16 @@ function CadastrosPage() {
               <span className="text-muted-foreground"><span className="font-semibold text-emerald-400">{(stats?.withPhone || 0).toLocaleString("pt-BR")}</span> com WhatsApp</span>
             </div>
             <div className="flex gap-2 ml-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5"
+                onClick={() => downloadCsv(filtered)}
+                title="Baixar planilha CSV dos cadastros filtrados"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Baixar planilha
+              </Button>
               <Button
                 variant={showFilters ? "default" : "outline"}
                 size="sm"
