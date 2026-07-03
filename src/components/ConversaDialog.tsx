@@ -103,7 +103,7 @@ export function ConversaDialog({ number, chips, open, onClose }: Props) {
                     className={`max-w-[78%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
                       fromMe
                         ? "bg-primary text-primary-foreground rounded-tr-sm"
-                        : "bg-muted text-white rounded-tl-sm"
+                        : "bg-muted text-foreground rounded-tl-sm"
                     }`}
                   >
                     <p className="break-words">{text || "(sem texto)"}</p>

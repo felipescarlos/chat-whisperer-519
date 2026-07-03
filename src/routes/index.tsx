@@ -495,7 +495,7 @@ function ConversasPage() {
                             : "bg-bubble-in text-zinc-900 rounded-tl-none border border-border/30"
                         }`}
                       >
-                        <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words text-slate-50">{text}</p>
+                        <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">{text}</p>
                         <div className="flex justify-end items-center mt-1 -mr-1">
                           <span className={`text-[10px] select-none ${fromMe ? "text-white/70" : "text-muted-foreground"}`}>
                             {formatTime(ts)}
