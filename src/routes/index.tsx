@@ -143,6 +143,10 @@ function ConversasPage() {
   }, [loadChats]);
 
   // Map CRMContacts to ChatWithInstance for full backward compatibility
+  const defaultInstance = useMemo(
+    () => instances.find((i) => i.connectionStatus === "open")?.name || instances[0]?.name || "",
+    [instances]
+  );
   const allChats = useMemo<ChatWithInstance[]>(() => {
     const list = contacts
       .filter((c) => {
@@ -158,7 +162,7 @@ function ConversasPage() {
           pushName: c.name || formatPhoneNumber(c.number),
           profilePicUrl: null,
           updatedAt: c.updatedAt,
-          __instance: c.instance || "vetooo",
+          __instance: c.instance || defaultInstance,
           __crmContact: c,
           lastMessage: lastMsg
             ? {
@@ -180,7 +184,7 @@ function ConversasPage() {
         : new Date(b.updatedAt || 0).getTime();
       return tsB - tsA;
     });
-  }, [contacts, filterInstance]);
+  }, [contacts, filterInstance, defaultInstance]);
 
   // Handle URL auto-select search param
   useEffect(() => {
@@ -298,7 +302,6 @@ function ConversasPage() {
     }
   };
 
-  // Send message through manual API (automatically disables bot)
   const handleSend = async () => {
     if (!selected || !draft.trim()) return;
     setSending(true);
@@ -307,16 +310,10 @@ function ConversasPage() {
     try {
       const phoneNum = getSendableNumber(selected as Parameters<typeof getSendableNumber>[0]);
       const res = await sendCRMMessage(selected.__instance, phoneNum, text);
-      
+
       // Append message immediately
       setMessages((m) => [...m, res.message]);
-      
-      // Auto-update bot state UI locally
-      setCrmBotEnabled(false);
-      if (selected.__crmContact) {
-        selected.__crmContact.botEnabled = false;
-      }
-      
+
       loadChats(true);
     } catch (e) {
       console.error(e);
